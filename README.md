@@ -1,3 +1,3 @@
 # cicada
 
-Comming soon!
+Coming soon!
