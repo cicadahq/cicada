@@ -1,5 +1,5 @@
 export type FilePath = string;
-export type Cache = FilePath | Cache[];
+export type Cache = FilePath | FilePath[];
 
 export type StepFn = () => void | Promise<void> | number | Promise<number>;
 
@@ -15,6 +15,7 @@ export type JobOptions = {
   name?: string;
   image: string;
   env?: Record<string, string>;
+  cache?: Cache; 
   steps: Step[];
 };
 
