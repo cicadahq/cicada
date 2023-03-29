@@ -19,15 +19,15 @@ export type StepFn = () => void | Promise<void> | number | Promise<number>;
  */
 export type Step =
   | {
-      /**
-       * The name of the step.
-       */
-      name: string;
-      /**
-       * The command to run as a string or a step function.
-       */
-      run: string | StepFn;
-    }
+    /**
+     * The name of the step.
+     */
+    name: string;
+    /**
+     * The command to run as a string or a step function.
+     */
+    run: string | StepFn;
+  }
   | StepFn
   | string;
 

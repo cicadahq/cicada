@@ -1,0 +1,23 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Git Checkout
+        uses: actions/checkout@v2
+      - uses: denoland/setup-deno@v1
+        with:
+          deno-version: v1.x
+      - name: Fmt Lint Deno Module
+        run: deno fmt --check
+      - name: Lint Deno Module
+        run: deno lint
+      - name: Check Deno Module
+        run: deno check lib.ts
