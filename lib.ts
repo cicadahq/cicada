@@ -46,6 +46,10 @@ export type Step =
      * Secrets to expose for this step. They are accessed with `getSecret` or via the `/var/run/secrets` directory.
      */
     secrets?: string[];
+    /**
+     * Specify the working directory where this job should run
+     */
+    workingDirectory?: FilePath;
   }
   | StepFn
   | string;
@@ -80,6 +84,11 @@ export type JobOptions = {
    * This will mount for all steps in the job.
    */
   cacheDir?: CacheDir;
+
+  /**
+   * Specify the working directory where this job should run
+   */
+  workingDirectory?: FilePath;
 };
 
 /**
