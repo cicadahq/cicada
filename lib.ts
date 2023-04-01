@@ -84,11 +84,14 @@ export type JobOptions = {
    * This will mount for all steps in the job.
    */
   cacheDir?: CacheDir;
-
   /**
    * Specify the working directory where this job should run
    */
   workingDirectory?: FilePath;
+  /**
+   * Require these jobs to run before the current job can be executed.
+   */
+  dependsOn?: Job[];
 };
 
 /**
@@ -96,10 +99,18 @@ export type JobOptions = {
  */
 export class Job {
   /**
+   * Do not used. The _uuid property is unstable and should be considered an internal implementation detail.
+   * @internal
+   */
+  readonly _uuid: string;
+
+  /**
    * Creates a new Job instance.
    * @param options - The options for the job.
    */
-  constructor(public options: JobOptions) {}
+  constructor(public options: JobOptions) {
+    this._uuid = crypto.randomUUID();
+  }
 }
 
 /**
