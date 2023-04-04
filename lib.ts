@@ -36,6 +36,7 @@ export type Step =
     cacheDir?: CacheDir;
     /**
      * Disable caching for this step, this will cause the step to run every time, it may cause subsequent steps to run as well.
+     * @default false
      */
     cache?: boolean;
     /**
