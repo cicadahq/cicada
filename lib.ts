@@ -1,5 +1,6 @@
 import { assert } from "https://deno.land/std@0.182.0/testing/asserts.ts";
 import { resolve } from "https://deno.land/std@0.182.0/path/mod.ts";
+import { DockerImages } from "./types/dockerImages.ts";
 
 /**
  * A file path represented as a string.
@@ -38,7 +39,7 @@ export type StepFn = () => void | Promise<void> | number | Promise<number>;
 export type Step =
   | {
     /**
-     * The command to run as a string or a step function.
+     * The command to run as a string or a {@link StepFn step function}.
      */
     run: string | StepFn;
 
@@ -89,7 +90,7 @@ export type JobOptions = {
    *
    * @example "node", "node:18", "node:18-alpine"
    */
-  image: string;
+  image: DockerImages;
 
   /**
    * A list of steps to run in the job.
