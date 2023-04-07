@@ -138,9 +138,9 @@ export type JobOptions = {
  */
 export class Job {
   /**
-   * Do not use. The _uuid property is unstable and should be considered an internal implementation detail.
+   * @deprecated Do not use. The _uuid property is unstable and should be considered an internal implementation detail.
    */
-  protected readonly _uuid = crypto.randomUUID();
+  readonly _uuid = crypto.randomUUID();
 
   /**
    * Creates a new Job instance.
@@ -186,7 +186,7 @@ export class Secret {
    *
    * @param name - The name of the secret.
    */
-  constructor(name: string) {
+  constructor(public name: string) {
     if (!Secret.#isInJob) return;
 
     try {
