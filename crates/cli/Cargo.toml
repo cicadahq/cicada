@@ -2,6 +2,7 @@
 name = "cicada-cli"
 description = "Write CI/CD Pipelines in TypeScript"
 version = "0.1.29"
+readme = "../../README.md"
 edition.workspace = true
 homepage.workspace = true
 repository.workspace = true
