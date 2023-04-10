@@ -34,7 +34,8 @@ pub enum TrackEvent {
 
 impl TrackEvent {
     pub async fn post(self) -> Result<reqwest::Response> {
-        let segment_write_key = std::env::var("SEGMENT_WRITE_KEY").context("No segment write key found")?;
+        let segment_write_key =
+            std::env::var("SEGMENT_WRITE_KEY").context("No segment write key found")?;
 
         let anonymous_id = (*ANONYMOUS_ID)
             .to_owned()

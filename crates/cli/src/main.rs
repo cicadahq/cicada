@@ -654,7 +654,6 @@ async fn main() -> anyhow::Result<()> {
             ))
         });
 
-
     if std::env::var_os("CICADA_FORCE_COLOR").is_some() {
         owo_colors::set_override(true);
     }
