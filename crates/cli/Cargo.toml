@@ -2,8 +2,11 @@
 name = "cicada"
 description = "Write CI/CD Pipelines in TypeScript"
 version = "0.1.29"
-edition = "2021"
-authors = ["Cicada Team"]
+edition.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+authors.workspace = true
 
 [dependencies]
 ahash = "0.8.3"
