@@ -1,13 +1,7 @@
 # Cicada
-
 > [Cicada](https://cicada.build): Write CI/CD pipelines in TypeScript
 
-### How to use
-```typescript
-import {Pipeline, Job} as cicada from "https://deno.land/x/cicada/lib.ts"
-```
-
-### Pipelines, Jobs, and Steps
+## Pipelines, Jobs, and Steps
 * **Pipeline**: A pipeline is the highest level concept in Cicada. It is a TypeScript file like `build.ts`, `deploy,ts`, or `run_tests.ts`. A pipeline is triggered when an event occurs in your repository such as a new commit or a pull request being opened. A pipeline is an array of jobs that  are executed sequentially or in parallel.
 * **Jobs**: A job is an array of steps executed on the same container/runner. 
 * **Steps**: A step is either a shell script or Deno script executed in the job's container
@@ -17,13 +11,60 @@ import {Pipeline, Job} as cicada from "https://deno.land/x/cicada/lib.ts"
 **Example**  
 You have a Pipeline called "Tests". It has jobs called "Cypress" and "Playwright" that execute in separate containers. Each job has multiple steps for cloning your code, installing the testing framework, and executing the tests
 
-### Support
+## Getting started
+### 1. Dependencies
+- Deno -
+  [Installation Guide](https://deno.land/manual@v1.32.1/getting_started/installation)
+- Docker (at least version 23.0) -
+  [Installation Guide](https://docs.docker.com/desktop/)
+
+### 2. MacOS Quickstart
+```bash
+brew install deno
+brew install --cask docker
+```
+
+### 3. Download the Cicada CLI
+Use this script to download the latest release of Cicada:
+```bash
+curl -fSsL https://raw.githubusercontent.com/cicadahq/release/main/download.sh | sh
+```
+
+### 4. Create a pipeline
+Go to the project you want to make a pipeline for and run:
+```bash
+cicada init <pipeline-name>
+```
+
+### 5. Run the pipeline
+```bash
+cicada run .cicada/<pipeline-name>.ts
+```
+
+### 6. Set up autocomplete for .cicada files (Optional)
+Install the Deno extension for VSCode:
+```bash
+code --install-extension denoland.vscode-deno
+```
+
+Add the following to your `.vscode/settings.json`
+```json
+{
+  "deno.enable": true,
+  "deno.enablePaths": [".cicada"]
+}
+```
+
+### 7. Import Cicada in typescript
+```typescript
+import {Pipeline, Job} as cicada from "https://deno.land/x/cicada/lib.ts"
+```
+
+## Support
 👉 **Docs**: https://deno.land/x/cicada@v0.1.2/lib.ts  
 👉 **Discord**: https://discord.gg/g2PRPm4u4Y
 
-
-### Roadmap
+## Roadmap
 - [x] Local runner execution
 - [ ] Cloud runner execution
-- [ ] Parallel job execution
-
+- [x] Parallel job execution
