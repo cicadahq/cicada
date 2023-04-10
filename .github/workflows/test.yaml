@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  test:
+  test-deno:
     runs-on: ubuntu-latest
     steps:
       - name: Git Checkout
@@ -21,3 +21,16 @@ jobs:
         run: deno lint
       - name: Check Deno Module
         run: deno check lib.ts
+  test-rust:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Git Checkout
+        uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+      - name: Cargo Fmt
+        run: cargo fmt -- --check
+      - name: Cargo Clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
