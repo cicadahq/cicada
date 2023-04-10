@@ -1,6 +1,6 @@
 import { Job, Pipeline } from "https://deno.land/x/cicada/lib.ts";
 
-const job = new Job({
+const muslJob = new Job({
   image: "rust:latest",
   steps: [
     "apt-get update && apt-get install -y musl-tools",
@@ -9,4 +9,11 @@ const job = new Job({
   ],
 });
 
-export default new Pipeline([job]);
+const gnuJob = new Job({
+  image: "rust:latest",
+  steps: [
+    "cargo build --release",
+  ],
+});
+
+export default new Pipeline([muslJob, gnuJob]);

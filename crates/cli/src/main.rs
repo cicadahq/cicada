@@ -641,15 +641,19 @@ impl Commands {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let _guard = telemetry_enabled().then(|| {
-        sentry::init((
-            "https://84d99b738baa40f4856bad693a234e94@o436453.ingest.sentry.io/4504964123000832",
-            sentry::ClientOptions {
-                release: sentry::release_name!(),
-                ..Default::default()
-            },
-        ))
-    });
+    let _guard = telemetry_enabled()
+        .then_some(option_env!("SENTRY_AUTH_TOKEN"))
+        .flatten()
+        .map(|token| {
+            sentry::init((
+                token,
+                sentry::ClientOptions {
+                    release: sentry::release_name!(),
+                    ..Default::default()
+                },
+            ))
+        });
+
 
     if std::env::var_os("CICADA_FORCE_COLOR").is_some() {
         owo_colors::set_override(true);

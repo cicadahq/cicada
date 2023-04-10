@@ -60,11 +60,12 @@ jobs:
         with:
           command: build
           args: -p cicada --release --target ${{ matrix.target }}
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SEGMENT_WRITE_KEY: ${{ secrets.SEGMENT_WRITE_KEY }}
 
       - name: Upload release (linux)
         if: matrix.target == 'x86_64-unknown-linux-gnu' || matrix.target == 'x86_64-unknown-linux-musl'
-        env:
-          GITHUB_TOKEN: ${{ secrets.CICADA_GITHUB_TOKEN }}
         run: |
           version=${{ steps.version.outputs.version }}
           echo "version=$version"
@@ -85,8 +86,6 @@ jobs:
           done
 
       - name: Upload release (macos)
-        env:
-          GITHUB_TOKEN: ${{ secrets.CICADA_GITHUB_TOKEN }}
         if: matrix.target == 'x86_64-apple-darwin' || matrix.target == 'aarch64-apple-darwin'
         run: |
           version=${{ steps.version.outputs.version }}
@@ -110,8 +109,6 @@ jobs:
 
       - name: Upload release (windows)
         if: matrix.target == 'x86_64-pc-windows-msvc'
-        env:
-          GITHUB_TOKEN: ${{ secrets.CICADA_GITHUB_TOKEN }}
         shell: bash
         run: |
           version=${{ steps.version.outputs.version }}
