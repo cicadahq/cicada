@@ -77,11 +77,11 @@ Add the following to your `.vscode/settings.json`
 
 ## Support
 
-👉 **Docs**: https://deno.land/x/cicada@v0.1.2/lib.ts\
+👉 **Docs**: https://deno.land/x/cicada/lib.ts
+
 👉 **Discord**: https://discord.gg/g2PRPm4u4Y
 
 ## Roadmap
 
-- [x] Local runner execution
-- [ ] Cloud runner execution
-- [x] Parallel job execution
+- Add direct integrations with buildkit
+- Integrate deeper with deno
