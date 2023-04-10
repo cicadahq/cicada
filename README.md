@@ -29,14 +29,14 @@ for cloning your code, installing the testing framework, and executing the tests
 - Docker (at least version 23.0) -
   [Installation Guide](https://docs.docker.com/desktop/)
 
-### 2. MacOS Quickstart
+#### MacOS Quickstart
 
 ```bash
 brew install deno
 brew install --cask docker
 ```
 
-### 3. Download the Cicada CLI
+### 2. Download the Cicada CLI
 
 Use this script to download the latest release of Cicada:
 
@@ -44,7 +44,7 @@ Use this script to download the latest release of Cicada:
 curl -fSsL https://raw.githubusercontent.com/cicadahq/release/main/download.sh | sh
 ```
 
-### 4. Create a pipeline
+### 3. Create a pipeline
 
 Go to the project you want to make a pipeline for and run:
 
@@ -52,13 +52,13 @@ Go to the project you want to make a pipeline for and run:
 cicada init <pipeline-name>
 ```
 
-### 5. Run the pipeline
+### 4. Run the pipeline
 
 ```bash
 cicada run .cicada/<pipeline-name>.ts
 ```
 
-### 6. Set up autocomplete for .cicada files (Optional)
+### 5. Set up autocomplete for .cicada files (Optional)
 
 Install the Deno extension for VSCode:
 
@@ -73,12 +73,6 @@ Add the following to your `.vscode/settings.json`
   "deno.enable": true,
   "deno.enablePaths": [".cicada"]
 }
-```
-
-### 7. Import Cicada in typescript
-
-```typescript
-import {Pipeline, Job} as cicada from "https://deno.land/x/cicada/lib.ts"
 ```
 
 ## Support
