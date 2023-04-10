@@ -21,7 +21,7 @@ pub enum CacheSharing {
 }
 
 impl CacheSharing {
-    fn to_text(&self) -> &'static str {
+    fn as_text(&self) -> &'static str {
         match self {
             CacheSharing::Shared => "shared",
             CacheSharing::Private => "private",
@@ -48,7 +48,7 @@ impl CacheDirectory {
         let mut flag = format!("--mount=type=cache,target={path}");
 
         if let Some(sharing) = self.sharing {
-            flag.push_str(&format!(",sharing={}", sharing.to_text()));
+            flag.push_str(&format!(",sharing={}", sharing.as_text()));
         }
 
         flag

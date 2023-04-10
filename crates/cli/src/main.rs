@@ -661,6 +661,7 @@ async fn main() -> anyhow::Result<()> {
                 subcommand_name: subcommand,
             }
             .post()
+            .await
         })
     });
 
