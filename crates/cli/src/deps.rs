@@ -25,7 +25,7 @@ pub async fn download_deno() -> anyhow::Result<PathBuf> {
             }
         }
 
-        let deno_tar = format!("deno-x86_64-unknown-linux-gnu.zip");
+        let deno_tar = "deno-x86_64-unknown-linux-gnu.zip".to_string();
         let deno_tar_path = deno_version_dir.join(&deno_tar);
 
         if !deno_tar_path.exists() {
@@ -33,9 +33,7 @@ pub async fn download_deno() -> anyhow::Result<PathBuf> {
             let deno_status = Command::new("curl")
                 .args([
                     "-fSsL",
-                    format!(
-                        "https://github.com/denoland/deno/releases/download/v1.32.1/deno-x86_64-unknown-linux-gnu.zip"
-                    )
+                    format!("https://github.com/denoland/deno/releases/download/v{DENO_VERSION}/deno-x86_64-unknown-linux-gnu.zip")
                     .as_str(),
                     "-o",
                     deno_tar_path.to_str().unwrap(),
@@ -92,7 +90,7 @@ pub async fn download_cicada_musl() -> anyhow::Result<PathBuf> {
     }
 
     let linux_exe_name = "cicada-x86_64-unknown-linux-musl";
-    let linux_exe_path = version_bin_dir.join(&linux_exe_name);
+    let linux_exe_path = version_bin_dir.join(linux_exe_name);
     let linux_tar = format!("{linux_exe_name}.tar.gz");
     let linux_tar_path = version_bin_dir.join(&linux_tar);
 
@@ -153,7 +151,7 @@ pub async fn download_cicada_musl() -> anyhow::Result<PathBuf> {
         // Move the cicada binary to the bin directory
         std::fs::rename(
             version_bin_dir.join("cicada"),
-            version_bin_dir.join(&linux_exe_name),
+            version_bin_dir.join(linux_exe_name),
         )?;
 
         // Delete the tarball

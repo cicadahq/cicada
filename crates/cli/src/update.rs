@@ -36,7 +36,7 @@ pub async fn check_for_update() {
 
     // Check the last time we checked for an update
     if let Ok(last_update_check) = std::fs::read_to_string(&last_update_check_path) {
-        let last_update_check: SystemTime = SystemTime::from(std::time::UNIX_EPOCH)
+        let last_update_check: SystemTime = std::time::UNIX_EPOCH
             + std::time::Duration::from_secs(last_update_check.parse().unwrap());
 
         if last_update_check.elapsed().unwrap_or_default().as_secs() < 60 * 60 * 24 {
@@ -58,7 +58,7 @@ pub async fn check_for_update() {
     // Write the current time to the last update check file
     std::fs::write(
         &last_update_check_path,
-        &SystemTime::now()
+        SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_secs()

@@ -150,9 +150,9 @@ async fn runtime_checks() {
             }
 
             let version = version_str_parts[1]
-                .strip_prefix("v")
+                .strip_prefix('v')
                 .unwrap_or(version_str_parts[1]);
-            let version_parts = version.split(".").collect::<Vec<&str>>();
+            let version_parts = version.split('.').collect::<Vec<&str>>();
 
             let major = version_parts[0].parse::<u32>().unwrap_or_default();
             let minor = version_parts[1].parse::<u32>().unwrap_or_default();
@@ -303,12 +303,7 @@ impl Commands {
 
                 let nodes: Vec<Node> = jobs
                     .values()
-                    .map(|(_, job)| {
-                        Node::new(
-                            job.uuid,
-                            job.depends_on.iter().map(|after| *after).collect(),
-                        )
-                    })
+                    .map(|(_, job)| Node::new(job.uuid, job.depends_on.to_vec()))
                     .collect();
                 let graph = topological_sort(&invert_graph(&nodes))?;
 
@@ -530,7 +525,7 @@ impl Commands {
 
                 // Cache deno dependencies
                 if let Ok(mut out) = Command::new("deno")
-                    .args(&["cache", "-q", pipeline_path.to_str().unwrap()])
+                    .args(["cache", "-q", pipeline_path.to_str().unwrap()])
                     .spawn()
                 {
                     out.wait().await.ok();

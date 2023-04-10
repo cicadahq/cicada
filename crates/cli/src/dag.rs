@@ -31,7 +31,7 @@ pub fn invert_graph(graph: &[Node]) -> Vec<Node> {
         }
     }
 
-    inverted_nodes.into_iter().map(|(_, node)| node).collect()
+    inverted_nodes.into_values().collect()
 }
 
 pub fn topological_sort(graph: &[Node]) -> Result<Vec<Vec<Uuid>>, Error> {
@@ -62,14 +62,14 @@ pub fn topological_sort(graph: &[Node]) -> Result<Vec<Vec<Uuid>>, Error> {
 
         for _ in 0..size {
             let node = queue.pop().unwrap();
-            current.push(node.clone());
+            current.push(node);
 
             if let Some(n) = graph_map.get(&node) {
                 for adjacent in &n.edges {
                     *in_degree.get_mut(adjacent).unwrap() -= 1;
 
                     if in_degree[adjacent] == 0 {
-                        queue.push(adjacent.clone());
+                        queue.push(*adjacent);
                     }
                 }
             }
