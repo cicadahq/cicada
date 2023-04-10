@@ -1,0 +1,51 @@
+[package]
+name = "cicada-cli"
+description = "Write CI/CD Pipelines in TypeScript"
+version = "0.1.29"
+readme = "../../README.md"
+edition.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+ahash = "0.8.3"
+anyhow = "1.0.70"
+atty = "0.2.14"
+camino = { version = "1.1.4", features = ["serde1"] }
+clap = { version = "4.1.13", features = ["derive"] }
+clap_complete = "4.2.0"
+dirs = "5.0.0"
+futures = "0.3.28"
+indicatif = "0.17.3"
+once_cell = "1.17.1"
+owo-colors = { version = "3.5.0", features = ["supports-colors"] }
+regex = "1.7.3"
+reqwest = { version = "0.11.16", default-features = false, features = [
+    "json",
+    "rustls",
+    "socks",
+] }
+semver = "1.0.17"
+sentry = { version = "0.30.0", default-features = false, features = [
+    "backtrace",
+    "contexts",
+    "panic",
+    "reqwest",
+    "rustls",
+] }
+serde = { version = "1.0.159", features = ["derive"] }
+serde_json = "1.0.94"
+shlex = "1.1.0"
+tempfile = "3.5.0"
+time = { version = "0.3.20", features = ["serde"] }
+tokio = { version = "1.26.0", features = ["full"] }
+url = "2.3.1"
+uuid = { version = "1.3.0", features = ["v4", "serde"] }
+
+[target.'cfg(not(target_env = "musl"))'.dependencies]
+self_update = { version = "0.36.0", features = [
+    "archive-tar",
+    "compression-flate2",
+] }

@@ -1,0 +1,40 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-deno:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Git Checkout
+        uses: actions/checkout@v2
+      - uses: denoland/setup-deno@v1
+        with:
+          deno-version: v1.x
+      - name: Fmt Lint Deno Module
+        run: deno fmt --check
+      - name: Lint Deno Module
+        run: deno lint
+      - name: Check Deno Module
+        run: deno check lib.ts
+  test-rust:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Git Checkout
+        uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+      - name: Cargo Fmt
+        run: cargo fmt -- --check
+      - name: Cargo Clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings

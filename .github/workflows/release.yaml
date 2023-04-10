@@ -1,0 +1,126 @@
+name: Release
+
+on:
+  release:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version"
+        required: true
+        type: string
+
+jobs:
+  release:
+    name: release ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            archive: tar.gz
+            os: ubuntu-latest
+          - target: x86_64-unknown-linux-musl
+            archive: tar.gz
+            os: ubuntu-latest
+          - target: x86_64-apple-darwin
+            archive: tar.gz
+            os: macos-latest
+          - target: aarch64-apple-darwin
+            archive: tar.gz
+            os: macos-latest
+          - target: x86_64-pc-windows-msvc
+            archive: zip
+            os: windows-latest
+
+    steps:
+      - uses: actions/checkout@master
+      - name: Set version
+        id: version
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: ${{ matrix.target }}
+
+      - name: Install Linux dependencies
+        if: matrix.target == 'x86_64-unknown-linux-gnu' || matrix.target == 'x86_64-unknown-linux-musl'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libssl-dev musl-tools
+
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: -p cicada --release --target ${{ matrix.target }}
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SEGMENT_WRITE_KEY: ${{ secrets.SEGMENT_WRITE_KEY }}
+
+      - name: Upload release (linux)
+        if: matrix.target == 'x86_64-unknown-linux-gnu' || matrix.target == 'x86_64-unknown-linux-musl'
+        run: |
+          version=${{ steps.version.outputs.version }}
+          echo "version=$version"
+
+          strip target/${{ matrix.target }}/release/cicada
+          mkdir out
+          mv target/${{ matrix.target }}/release/cicada out/
+
+          for archive in ${{ matrix.archive }}; do
+            OUT_FILE=cicada-${{ matrix.target }}.$archive
+            if [[ "$archive" == "tar.gz" ]]; then
+              tar -czf $OUT_FILE -C out cicada
+            fi 
+            if [[ "$archive" == "tar.zst" ]]; then
+              tar -cJf $OUT_FILE -C out cicada
+            fi
+            gh release upload $version $OUT_FILE
+          done
+
+      - name: Upload release (macos)
+        if: matrix.target == 'x86_64-apple-darwin' || matrix.target == 'aarch64-apple-darwin'
+        run: |
+          version=${{ steps.version.outputs.version }}
+          echo "version=$version"
+
+          strip target/${{ matrix.target }}/release/cicada
+          mkdir out
+          mv target/${{ matrix.target }}/release/cicada out/
+
+          for archive in ${{ matrix.archive }}; do
+            if [[ "$archive" == "zip" ]]; then
+              OUT_FILE=cicada-${{ matrix.target }}.$archive
+              zip $OUT_FILE out/cicada
+            fi
+            if [[ "$archive" == "tar.gz" ]]; then
+              OUT_FILE=cicada-${{ matrix.target }}.$archive
+              tar -czf $OUT_FILE -C out cicada
+            fi
+            gh release upload $version $OUT_FILE
+          done
+
+      - name: Upload release (windows)
+        if: matrix.target == 'x86_64-pc-windows-msvc'
+        shell: bash
+        run: |
+          version=${{ steps.version.outputs.version }}
+          echo "version=$version"
+
+          mkdir out
+          mv target/${{ matrix.target }}/release/cicada.exe out/
+
+          for archive in ${{ matrix.archive }}; do
+            if [[ "$archive" == "zip" ]]; then
+              OUT_FILE=cicada-${{ matrix.target }}.$archive
+              7z a $OUT_FILE out/cicada.exe
+            fi
+            gh release upload $version $OUT_FILE
+          done

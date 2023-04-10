@@ -1,0 +1,10 @@
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+
+[workspace.package]
+edition = "2021"
+homepage = "https://github.com/cicadahq/cicada"
+repository = "http://github.com/cicadahq/cicada"
+license = "MIT"
+authors = ["Cicada Team"]
