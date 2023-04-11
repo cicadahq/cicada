@@ -38,3 +38,5 @@ jobs:
         run: cargo fmt -- --check
       - name: Cargo Clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
+      - name: Cargo Test
+        run: cargo test --all-targets --all-features

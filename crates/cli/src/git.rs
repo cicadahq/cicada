@@ -117,7 +117,7 @@ mod tests {
     #[tokio::test]
     async fn test_github_repo() {
         let gh = github_repo().await.unwrap().unwrap();
-        assert_eq!(gh.owner, "withfig");
+        assert_eq!(gh.owner, "cicadahq");
         assert_eq!(gh.repo, "cicada");
     }
 }
