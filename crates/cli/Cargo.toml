@@ -12,6 +12,7 @@ authors.workspace = true
 [features]
 default = []
 telemetry = ["dep:sentry"]
+self-update = ["dep:self_update"]
 
 [dependencies]
 ahash = "0.8.3"
@@ -31,6 +32,10 @@ reqwest = { version = "0.11.16", default-features = false, features = [
     "rustls",
     "socks",
 ] }
+self_update = { version = "0.36.0", features = [
+    "archive-tar",
+    "compression-flate2",
+], optional = true }
 semver = "1.0.17"
 sentry = { version = "0.30.0", default-features = false, features = [
     "backtrace",
@@ -47,9 +52,3 @@ time = { version = "0.3.20", features = ["serde"] }
 tokio = { version = "1.26.0", features = ["full"] }
 url = "2.3.1"
 uuid = { version = "1.3.0", features = ["v4", "serde"] }
-
-[target.'cfg(not(target_env = "musl"))'.dependencies]
-self_update = { version = "0.36.0", features = [
-    "archive-tar",
-    "compression-flate2",
-] }

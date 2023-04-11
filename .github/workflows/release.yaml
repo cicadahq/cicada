@@ -18,20 +18,25 @@ jobs:
       matrix:
         include:
           - target: x86_64-unknown-linux-gnu
-            archive: tar.gz
+            archive: tar.gz tar.zst
             os: ubuntu-latest
+            features: telemetry,self-update
           - target: x86_64-unknown-linux-musl
-            archive: tar.gz
+            archive: tar.gz tar.zst
             os: ubuntu-latest
+            features: telemetry
           - target: x86_64-apple-darwin
             archive: tar.gz
             os: macos-latest
+            features: telemetry,self-update
           - target: aarch64-apple-darwin
             archive: tar.gz
             os: macos-latest
+            features: telemetry,self-update
           - target: x86_64-pc-windows-msvc
             archive: zip
             os: windows-latest
+            features: telemetry,self-update
 
     steps:
       - uses: actions/checkout@master
@@ -56,10 +61,11 @@ jobs:
           sudo apt-get install -y libssl-dev musl-tools
 
       - uses: Swatinem/rust-cache@v2
+      
       - uses: actions-rs/cargo@v1
         with:
           command: build
-          args: -p cicada-cli --release --target ${{ matrix.target }} -F telemetry
+          args: -p cicada-cli --release --target ${{ matrix.target }} -F ${{ matrix.features }}
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SEGMENT_WRITE_KEY: ${{ secrets.SEGMENT_WRITE_KEY }}

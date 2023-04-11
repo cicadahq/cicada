@@ -4,6 +4,7 @@ mod git;
 mod job;
 #[cfg(feature = "telemetry")]
 mod telemetry;
+#[cfg(feature = "self-update")]
 mod update;
 mod util;
 
@@ -16,6 +17,7 @@ use std::{
 };
 #[cfg(feature = "telemetry")]
 use telemetry::{segment::TrackEvent, segment_enabled, sentry::sentry_init};
+#[cfg(feature = "self-update")]
 use update::check_for_update;
 use url::Url;
 
@@ -237,7 +239,11 @@ impl Commands {
     async fn execute(self) -> anyhow::Result<()> {
         match self {
             Commands::Run { pipeline, secrets } => {
+                #[cfg(feature = "self-update")]
                 tokio::join!(check_for_update(), runtime_checks());
+
+                #[cfg(not(feature = "self-update"))]
+                runtime_checks().await;
 
                 eprintln!();
                 eprintln!(
@@ -475,6 +481,7 @@ impl Commands {
                 .await?;
             }
             Commands::Init { pipeline } => {
+                #[cfg(feature = "self-update")]
                 check_for_update().await;
 
                 // if std::env::var("TERM_PROGRAM").as_deref() == Ok("vscode") {
@@ -546,6 +553,9 @@ impl Commands {
                 println!();
             }
             Commands::New { pipeline } => {
+                #[cfg(feature = "self-update")]
+                check_for_update().await;
+
                 // Check if cicada is initialized
                 if !PathBuf::from(".cicada").exists() {
                     print_error(format!(
@@ -580,7 +590,7 @@ impl Commands {
                 );
                 println!();
             }
-            #[cfg(not(target_env = "musl"))]
+            #[cfg(feature = "self-update")]
             Commands::Update => {
                 use update::self_update_release;
 
@@ -602,9 +612,9 @@ impl Commands {
                     }
                 }
             }
-            #[cfg(target_env = "musl")]
+            #[cfg(not(feature = "self-update"))]
             Commands::Update => {
-                print_error("Updates are not supported on musl");
+                print_error("self update is not enabled in this build");
                 std::process::exit(1);
             }
             Commands::DownloadDeps => {
