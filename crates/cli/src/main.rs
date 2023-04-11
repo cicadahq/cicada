@@ -292,9 +292,25 @@ impl Commands {
                     std::fs::read_to_string(tmp_file.path())?
                 };
 
-                let deser = serde_json::from_str::<Pipeline>(&out)?;
+                let pipeline = serde_json::from_str::<Pipeline>(&out)?;
+
+                if let Some(base_ref) = std::env::var_os("CICADA_BASE_REF") {
+                    match pipeline.on {
+                        Some(job::Trigger::Options { push }) => {
+                            if let Some(base_ref) = base_ref.to_str() {
+                                if push.contains(&base_ref.to_string()) {
+                                    println!("Skipping pipeline because base ref is not in push.branches");
+                                    std::process::exit(1);
+                                }
+                            }
+                        },
+                        Some(job::Trigger::DenoFunction) => todo!("TypeScript trigger functions are unimplemented"),
+                        None => (),
+                    }
+                }
+
                 let mut jobs = HashMap::from_iter(
-                    deser
+                    pipeline
                         .jobs
                         .into_iter()
                         .enumerate()
