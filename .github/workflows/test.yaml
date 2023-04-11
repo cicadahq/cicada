@@ -36,7 +36,15 @@ jobs:
           override: true
       - name: Cargo Fmt
         run: cargo fmt -- --check
-      - name: Cargo Clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
-      - name: Cargo Test
-        run: cargo test --all-targets --all-features
+      
+      # Default features
+      - name: Cargo Clippy Default Features
+        run: cargo clippy -- -D warnings
+      - name: Cargo Test Default Features
+        run: cargo test
+
+      # All features
+      - name: Cargo Clippy All Features
+        run: cargo clippy --all-features -- -D warnings
+      - name: Cargo Test All Features
+        run: cargo test --all-features
