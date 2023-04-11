@@ -55,4 +55,8 @@ jobs:
       - name: Git Checkout
         uses: actions/checkout@v2
       - name: Shellcheck
-        run: shellcheck **/*.sh
+        run: |
+          for file in $(find . -type f -name "*.sh"); do
+            echo "Running shellcheck on $file"
+            shellcheck "$file"
+          done
