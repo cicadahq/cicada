@@ -41,7 +41,8 @@ async function installBinary() {
     process.exit(1);
   }
 
-  const binaryUrl = `https://github.com/cicadahq/cicada/releases/download/v${package.version}/${binaryFileName}`;
+  const binaryUrl =
+    `https://github.com/cicadahq/cicada/releases/download/v${package.version}/${binaryFileName}`;
 
   let binaryName = `cicada`;
   if (platform === "win32") {
