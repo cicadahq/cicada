@@ -12,6 +12,8 @@ use uuid::Uuid;
 
 use crate::util::data_path;
 
+use super::SEGMENT_WRITE_KEY;
+
 static ANONYMOUS_ID: Lazy<Option<String>> = Lazy::new(|| {
     let data_path = data_path().ok()?.join("segment_anonymous_id");
 
@@ -34,8 +36,7 @@ pub enum TrackEvent {
 
 impl TrackEvent {
     pub async fn post(self) -> Result<reqwest::Response> {
-        let segment_write_key =
-            std::env::var("SEGMENT_WRITE_KEY").context("No segment write key found")?;
+        let segment_write_key = SEGMENT_WRITE_KEY.context("No segment write key found")?;
 
         let anonymous_id = (*ANONYMOUS_ID)
             .to_owned()

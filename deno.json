@@ -3,5 +3,12 @@
   "imports": {
     "https://deno.land/x/cicada/lib.ts": "./lib.ts",
     "https://deno.land/x/cicada/types/dockerImages.ts": "./types/dockerImages.ts"
+  },
+  "fmt": {
+    "files": {
+      "exclude": [
+        "target"
+      ]
+    }
   }
 }

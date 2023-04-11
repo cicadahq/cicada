@@ -2,21 +2,22 @@ mod dag;
 mod deps;
 mod git;
 mod job;
-mod segment;
+#[cfg(feature = "telemetry")]
+mod telemetry;
 mod update;
 mod util;
 
 use anyhow::{bail, Context, Result};
 use clap_complete::generate;
-use segment::TrackEvent;
 use std::{
     ffi::OsStr,
     path::{Path, PathBuf},
     process::Stdio,
 };
+#[cfg(feature = "telemetry")]
+use telemetry::{segment::TrackEvent, segment_enabled, sentry::sentry_init};
 use update::check_for_update;
 use url::Url;
-use util::telemetry_enabled;
 
 use ahash::HashMap;
 use clap::Parser;
@@ -521,7 +522,7 @@ impl Commands {
                     std::process::exit(1);
                 }
 
-                tokio::fs::write(&pipeline_path, include_str!("init-pipeline.ts")).await?;
+                tokio::fs::write(&pipeline_path, include_str!("default-pipeline.ts")).await?;
 
                 // Cache deno dependencies
                 if let Ok(mut out) = Command::new("deno")
@@ -563,6 +564,8 @@ impl Commands {
                     ));
                     std::process::exit(1);
                 }
+
+                tokio::fs::write(&pipeline_path, include_str!("default-pipeline.ts")).await?;
 
                 println!();
                 println!(
@@ -621,6 +624,7 @@ impl Commands {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn subcommand(&self) -> &'static str {
         match self {
             Commands::Run { .. } => "run",
@@ -636,38 +640,30 @@ impl Commands {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let _guard = telemetry_enabled()
-        .then_some(option_env!("SENTRY_AUTH_TOKEN"))
-        .flatten()
-        .map(|token| {
-            sentry::init((
-                token,
-                sentry::ClientOptions {
-                    release: sentry::release_name!(),
-                    ..Default::default()
-                },
-            ))
-        });
+    #[cfg(feature = "telemetry")]
+    let _sentry_guard = sentry_init();
 
     if std::env::var_os("CICADA_FORCE_COLOR").is_some() {
         owo_colors::set_override(true);
     }
 
     let command = Commands::parse();
-    let join = telemetry_enabled().then(|| {
+
+    #[cfg(feature = "telemetry")]
+    let telem_join = segment_enabled().then(|| {
         let subcommand = command.subcommand().to_owned();
-        tokio::spawn(async {
+        tokio::spawn(
             TrackEvent::SubcommandExecuted {
                 subcommand_name: subcommand,
             }
-            .post()
-            .await
-        })
+            .post(),
+        )
     });
 
     let res = command.execute().await;
 
-    if let Some(join) = join {
+    #[cfg(feature = "telemetry")]
+    if let Some(join) = telem_join {
         join.await.ok();
     }
 

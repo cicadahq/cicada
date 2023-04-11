@@ -59,7 +59,7 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: build
-          args: -p cicada --release --target ${{ matrix.target }}
+          args: -p cicada-cli --release --target ${{ matrix.target }} -F telemetry
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SEGMENT_WRITE_KEY: ${{ secrets.SEGMENT_WRITE_KEY }}
@@ -70,9 +70,9 @@ jobs:
           version=${{ steps.version.outputs.version }}
           echo "version=$version"
 
-          strip target/${{ matrix.target }}/release/cicada
+          strip target/${{ matrix.target }}/release/cicada-cli
           mkdir out
-          mv target/${{ matrix.target }}/release/cicada out/
+          mv target/${{ matrix.target }}/release/cicada-cli out/cicada
 
           for archive in ${{ matrix.archive }}; do
             OUT_FILE=cicada-${{ matrix.target }}.$archive
@@ -91,9 +91,9 @@ jobs:
           version=${{ steps.version.outputs.version }}
           echo "version=$version"
 
-          strip target/${{ matrix.target }}/release/cicada
+          strip target/${{ matrix.target }}/release/cicada-cli
           mkdir out
-          mv target/${{ matrix.target }}/release/cicada out/
+          mv target/${{ matrix.target }}/release/cicada-cli out/cicada
 
           for archive in ${{ matrix.archive }}; do
             if [[ "$archive" == "zip" ]]; then
@@ -115,7 +115,7 @@ jobs:
           echo "version=$version"
 
           mkdir out
-          mv target/${{ matrix.target }}/release/cicada.exe out/
+          mv target/${{ matrix.target }}/release/cicada-cli.exe out/cicada.exe
 
           for archive in ${{ matrix.archive }}; do
             if [[ "$archive" == "zip" ]]; then

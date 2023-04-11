@@ -171,6 +171,8 @@ pub struct Job {
 }
 
 impl Job {
+    /// This comverts the job into a dockerfile definition, the plan is to convert this into
+    /// a direct llb definition in the future
     pub fn to_dockerfile(
         &self,
         module_name: &str,
