@@ -29,7 +29,7 @@ pub async fn download_deno() -> anyhow::Result<PathBuf> {
         let deno_tar_path = deno_version_dir.join(&deno_tar);
 
         if !deno_tar_path.exists() {
-            // Download the tarball via Command
+            // TODO: Replace with reqwest
             let deno_status = Command::new("curl")
                 .args([
                     "-fSsL",
@@ -49,7 +49,7 @@ pub async fn download_deno() -> anyhow::Result<PathBuf> {
             }
         }
 
-        // Unpack the tarball via Command
+        // TODO: Replace with zip crate
         let unzip_status = Command::new("unzip")
             .args([
                 "-q",
@@ -108,7 +108,7 @@ pub async fn download_cicada_musl() -> anyhow::Result<PathBuf> {
         }
 
         if !linux_tar_path.exists() {
-            // Download the tarball via Command
+            // TODO: Replace with reqwest
             let curl_status = Command::new("curl")
                 .args([
                     "-fSsL",
@@ -130,7 +130,7 @@ pub async fn download_cicada_musl() -> anyhow::Result<PathBuf> {
             }
         }
 
-        // Unpack the tarball via Command
+        // TODO: Replace with tar/flate2 crate
         let tar_status = Command::new("tar")
             .args([
                 "xzf",

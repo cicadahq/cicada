@@ -97,6 +97,7 @@ pub fn self_update_release() -> anyhow::Result<Box<dyn ReleaseUpdate>> {
         ("linux", "x86_64") => "cicada-x86_64-unknown-linux-gnu.tar.gz",
         ("macos", "x86_64") => "cicada-x86_64-apple-darwin.tar.gz",
         ("macos", "aarch64") => "cicada-aarch64-apple-darwin.tar.gz",
+        ("windows", "x86_64") => "cicada-x86_64-pc-windows-msvc.zip",
         _ => anyhow::bail!("Unsupported OS"),
     };
 
