@@ -82,6 +82,9 @@ fi
 # move the file to the current directory
 mv "$TMP_DIR/cicada" "$DEST"
 
+# clean up
+rm -rf "$TMP_DIR"
+
 if [ "$USER_ID" -eq 0 ]; then
     echo "cicada has been installed to /usr/local/bin"
     echo
