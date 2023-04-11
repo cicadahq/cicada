@@ -4,7 +4,7 @@ const path = require("path");
 const axios = require("axios");
 const tar = require("tar");
 const extract = require("extract-zip");
-const package = require("./package.json");
+const packageJson = require("./package.json");
 
 async function downloadFile(url, outputPath) {
   const response = await axios({
@@ -41,7 +41,7 @@ async function installBinary() {
   }
 
   const binaryUrl =
-    `https://github.com/cicadahq/cicada/releases/download/v${package.version}/${binaryFileName}`;
+    `https://github.com/cicadahq/cicada/releases/download/v${packageJson.version}/${binaryFileName}`;
 
   let binaryName = `cicada`;
   if (platform === "win32") {
