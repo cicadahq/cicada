@@ -5,7 +5,6 @@ const axios = require("axios");
 const tar = require("tar");
 const extract = require("extract-zip");
 const package = require("./package.json");
-const { execSync } = require("child_process");
 
 async function downloadFile(url, outputPath) {
   const response = await axios({
