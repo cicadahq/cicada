@@ -25,6 +25,7 @@ jobs:
         run: deno lint
       - name: Check Deno Module
         run: deno check lib.ts
+
   test-rust:
     runs-on: ubuntu-latest
     steps:
@@ -36,7 +37,7 @@ jobs:
           override: true
       - name: Cargo Fmt
         run: cargo fmt -- --check
-      
+
       # Default features
       - name: Cargo Clippy Default Features
         run: cargo clippy -- -D warnings
@@ -48,7 +49,7 @@ jobs:
         run: cargo clippy --all-features -- -D warnings
       - name: Cargo Test All Features
         run: cargo test --all-features
- 
+
   test-shell:
     runs-on: ubuntu-latest
     steps:

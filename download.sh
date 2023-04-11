@@ -103,9 +103,14 @@ else
             else
                 shell_profile="$HOME/.zshrc"
             fi
+            shell_type="posix"
             ;;
         */bash)
             shell_profile="$HOME/.bashrc"
+            shell_type="posix"
+            ;;
+        */fish)
+            shell_type="fish"
             ;;
         *)
             # Error out if we don't know what shell we're using
@@ -117,7 +122,11 @@ else
         esac
 
         # Add cicada to the path
-        echo "export PATH=\"\$HOME/.local/bin:\$PATH\"" >> "$shell_profile"
+        if [ "$shell_type" = "posix" ]; then
+            echo "export PATH=\"\$HOME/.local/bin:\$PATH\"" >> "$shell_profile"
+        else
+            fish -c "set -U fish_user_paths \$HOME/.local/bin \$fish_user_paths"
+        fi
         
         echo "cicada has been installed to ~/.local/bin/cicada"
         echo
