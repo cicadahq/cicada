@@ -41,7 +41,7 @@ brew install --cask docker
 Use this script to download the latest release of Cicada:
 
 ```bash
-curl -fSsL https://raw.githubusercontent.com/cicadahq/release/main/download.sh | sh
+curl -fSsL https://raw.githubusercontent.com/cicadahq/cicada/main/download.sh | sh
 ```
 
 ### 3. Create a pipeline
