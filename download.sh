@@ -2,23 +2,13 @@
 
 set -eu
 
-# Check for curl
-if ! command -v curl >/dev/null 2>&1; then
-    echo "curl could not be found"
-    exit 1
-fi
+print_warning() {
+    printf "\033[33mWarning\033[0m: %s\n" "$1"
+}   
 
-if ! command -v docker >/dev/null 2>&1; then
-    echo "Warning: docker could not be found, you will not be able to use cicada"
-fi
-
-if ! command -v deno >/dev/null 2>&1; then
-    echo "Warning: deno could not be found, you will not be able to use cicada"
-fi
-
-# make a temp directory to download the files
-TMP_DIR=$(mktemp -d)
-
+print_error() {
+    printf "\033[31mError\033[0m: %s\nTo report this issue go to https://github.com/cicadahq/cicada/issues\n" "$1"
+}
 
 # os based
 UNAME=$(uname)
@@ -35,20 +25,48 @@ case $ARCH in
 esac
 
 if [ "$UNAME" = "Darwin" ] && [ "$ARCH" = "x86_64" ]; then
-    PATTERN="cicada-x86_64-apple-darwin.tar.gz"
+    ARCHIVE="cicada-x86_64-apple-darwin.tar.gz"
 elif [ "$UNAME" = "Darwin" ] && [ "$ARCH" = "aarch64" ]; then
-    PATTERN="cicada-aarch64-apple-darwin.tar.gz"
+    ARCHIVE="cicada-aarch64-apple-darwin.tar.gz"
 elif [ "$UNAME" = "Linux" ] && [ "$ARCH" = "x86_64" ]; then
-    PATTERN="cicada-x86_64-unknown-linux-gnu.tar.gz"
+    ARCHIVE="cicada-x86_64-unknown-linux-gnu.tar.gz"
 else
-    echo "Unsupported OS or Architecture"
+    print_error "Unsupported OS or Architecture: $UNAME $ARCH"
     exit 1
 fi
 
-curl -fSsL -o "$TMP_DIR/$PATTERN" "https://github.com/cicadahq/cicada/releases/latest/download/$PATTERN"
+# Check for curl
+if ! command -v curl >/dev/null 2>&1; then
+    print_error "curl could not be found, please install curl"
+    # TODO: Add recommended installation command for each OS
+    exit 1
+fi
+
+# Check for docker
+if ! command -v docker >/dev/null 2>&1; then
+    print_warning "docker could not be found, you will not be able to use cicada"
+
+    if [ "$UNAME" = "Darwin" ]; then
+        echo "If you are using brew, you can install docker with: brew install --cask docker"
+    fi
+fi
+
+# Check for deno
+if ! command -v deno >/dev/null 2>&1; then
+    print_warning "deno could not be found, you will not be able to use cicada"
+
+    if [ "$UNAME" = "Darwin" ]; then
+        echo "If you are using brew, you can install deno with: brew install deno"
+    fi
+fi
+
+# make a temp directory to download the files
+TMP_DIR=$(mktemp -d)
+
+curl -fSsL -o "$TMP_DIR/$ARCHIVE" "https://github.com/cicadahq/cicada/releases/latest/download/$ARCHIVE"
 
 # extract the file
-tar -xvf "$TMP_DIR/$PATTERN" -C "$TMP_DIR"
+tar -xvf "$TMP_DIR/$ARCHIVE" -C "$TMP_DIR" >/dev/null
 
 USER_ID=$(id -u)
 
@@ -66,7 +84,40 @@ mv "$TMP_DIR/cicada" "$DEST"
 
 if [ "$USER_ID" -eq 0 ]; then
     echo "cicada has been installed to /usr/local/bin"
+    echo
+    echo "Run 'cicada init' in your project to get started"
 else
-    echo "cicada has been installed to ~/.local/bin"
-    echo "Make sure to add $HOME/.local/bin to your PATH"
+    if command -v cicada >/dev/null; then
+        echo "cicada has been installed to ~/.local/bin/cicada"
+        echo
+        echo "Run 'cicada init' in your project to get started"
+    else
+        case $SHELL in	
+        */zsh)
+            # Check for ZDOTDIR
+            if [ -n "${ZDOTDIR:-}" ]; then
+                shell_profile="$ZDOTDIR/.zshrc"
+            else
+                shell_profile="$HOME/.zshrc"
+            fi
+            ;;
+        */bash)
+            shell_profile="$HOME/.bashrc"
+            ;;
+        *)
+            # Error out if we don't know what shell we're using
+            print_warning "Manually add cicada to your PATH, if you are in a posix shell:"	
+            echo "  export PATH=\"\$HOME/.local/bin:\$PATH\""	
+            echo
+            echo "Then restart your shell and run 'cicada init' in your project to get started"
+            exit 0
+        esac
+
+        # Add cicada to the path
+        echo "export PATH=\"\$HOME/.local/bin:\$PATH\"" >> "$shell_profile"
+        
+        echo "cicada has been installed to ~/.local/bin/cicada"
+        echo
+        echo "Restart your shell and run 'cicada init' in your project to get started"
+    fi
 fi

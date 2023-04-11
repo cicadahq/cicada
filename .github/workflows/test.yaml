@@ -48,3 +48,11 @@ jobs:
         run: cargo clippy --all-features -- -D warnings
       - name: Cargo Test All Features
         run: cargo test --all-features
+ 
+  test-shell:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Git Checkout
+        uses: actions/checkout@v2
+      - name: Shellcheck
+        run: shellcheck **/*.sh
