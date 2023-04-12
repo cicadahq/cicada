@@ -11,6 +11,7 @@ mod util;
 use anyhow::{bail, Context, Result};
 use clap_complete::generate;
 use once_cell::sync::Lazy;
+use semver::Version;
 use std::{
     ffi::OsStr,
     path::{Path, PathBuf},
@@ -32,7 +33,7 @@ use tokio::{
 
 use crate::{
     dag::{invert_graph, topological_sort, Node},
-    deps::{download_cicada_musl, download_deno},
+    deps::download_cicada_musl,
     git::github_repo,
     job::{OnFail, Pipeline},
 };
@@ -158,7 +159,11 @@ async fn runtime_checks() {
         Ok(output) => {
             if !output.status.success() {
                 print_error("Docker buildx is required to run cicada");
-                println!("Update docker if you are using Docker Desktop or install buildx if you are on Linux");
+                if std::env::consts::OS == "macos" || std::env::consts::OS == "windows" {
+                    println!("Please use the Docker Desktop UI to upgrade");
+                } else {
+                    println!("Please update via your package manager or install buildx if you don't have it");
+                }
                 std::process::exit(1);
             }
 
@@ -185,7 +190,42 @@ async fn runtime_checks() {
             }
         }
         Err(_) => {
-            print_error("Docker is required to run cicada");
+            print_error("Docker is required to use Cicada. Install it from https://docs.docker.com/engine/install");
+            std::process::exit(1);
+        }
+    }
+
+    match Command::new("deno").arg("-V").output().await {
+        Ok(output) => {
+            if !output.status.success() {
+                print_error("Deno is required to use Cicada. Install it from: https://deno.land/manual/getting_started/installation");
+                std::process::exit(1);
+            }
+
+            let output_str = String::from_utf8_lossy(&output.stdout);
+            let output_str = output_str.trim();
+            let output_str = output_str.strip_prefix("deno ").unwrap_or(output_str);
+
+            let Ok(version) = Version::parse(output_str) else {
+                print_error("Could not parse deno version");
+                return;
+            };
+
+            // Check deno version is compatible with cicada
+            if version < Version::parse("1.32.0").unwrap() {
+                if std::env::consts::OS == "macos" {
+                    print_error(format!("Deno version {DENO_VERSION} is required to use Cicada. Upgrade by running {}.", "brew upgrade deno".bold()));
+                } else {
+                    print_error(format!(    
+                        "Deno version {DENO_VERSION}  is required to use Cicada. Upgrade by running {} or using your package manager.", "deno upgrade".bold()
+                    ));
+                }
+
+                std::process::exit(1);
+            }
+        }
+        Err(_) => {
+            print_error("Deno is required to use Cicada. Install it from: https://deno.land/manual/getting_started/installation");
             std::process::exit(1);
         }
     }
@@ -275,6 +315,8 @@ enum Commands {
     DownloadDeps,
     /// List all available completions
     Completions { shell: clap_complete::Shell },
+    #[command(hide = true)]
+    Doctor,
 }
 
 impl Commands {
@@ -316,10 +358,8 @@ impl Commands {
                 let pipeline_url = Url::from_file_path(&pipeline)
                     .map_err(|_| anyhow::anyhow!("Unable to convert pipeline path to URL"))?;
 
-                let (deno_exe, cicada_musl_exe) =
-                    tokio::try_join!(download_deno(), download_cicada_musl())?;
+                let cicada_musl_exe = download_cicada_musl().await?;
 
-                let deno_dir = deno_exe.parent().unwrap();
                 let cicada_musl_dir = cicada_musl_exe.parent().unwrap();
 
                 let gh_repo = github_repo().await.ok().flatten();
@@ -408,7 +448,6 @@ impl Commands {
 
                         let gh_repo = gh_repo.clone();
                         let cicada_musl_dir = cicada_musl_dir.to_path_buf();
-                        let deno_dir = deno_dir.to_path_buf();
                         let pipeline_file_name = pipeline_file_name.to_os_string();
                         let project_dir = project_dir.to_path_buf();
                         let all_secrets = all_secrets.clone();
@@ -425,8 +464,6 @@ impl Commands {
                                 format!("local={}", project_dir.to_str().unwrap()),
                                 "--build-context".into(),
                                 format!("cicada-bin={}", cicada_musl_dir.to_str().unwrap()),
-                                "--build-context".into(),
-                                format!("deno-bin={}", deno_dir.to_str().unwrap()),
                                 "--progress".into(),
                                 "plain".into(),
                             ];
@@ -710,7 +747,7 @@ impl Commands {
                 std::process::exit(1);
             }
             Commands::DownloadDeps => {
-                tokio::try_join!(download_deno(), download_cicada_musl())?;
+                download_cicada_musl().await?;
             }
             Commands::Completions { shell } => {
                 use clap::CommandFactory;
@@ -720,6 +757,12 @@ impl Commands {
                     "cicada",
                     &mut std::io::stdout(),
                 );
+            },
+            Commands::Doctor => {
+                println!("Checking for common problems...");
+                runtime_checks().await;
+                println!();
+                println!("All checks passed!");
             }
         }
 
@@ -736,6 +779,7 @@ impl Commands {
             Commands::Update => "update",
             Commands::DownloadDeps => "download_deps",
             Commands::Completions { .. } => "completions",
+            Commands::Doctor => "doctor",
         }
     }
 }
