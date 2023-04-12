@@ -269,7 +269,7 @@ pub fn resolve_pipeline(pipeline: impl AsRef<Path>) -> Result<PathBuf> {
 }
 
 #[derive(Parser, Debug)]
-#[command(author, version, about)]
+#[command(name = "cicada", author, version, about)]
 enum Commands {
     /// Run a cicada pipeline
     Run {
