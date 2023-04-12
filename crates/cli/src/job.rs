@@ -192,7 +192,7 @@ impl Job {
         );
 
         // Install deno bin
-        
+
         lines.push("COPY --from=deno-bin /deno /usr/local/bin/deno".into());
 
         // Make working directory

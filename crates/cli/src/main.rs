@@ -216,7 +216,7 @@ async fn runtime_checks() {
                 if std::env::consts::OS == "macos" {
                     print_error(format!("Deno version {DENO_VERSION} is required to use Cicada. Upgrade by running {}.", "brew upgrade deno".bold()));
                 } else {
-                    print_error(format!(    
+                    print_error(format!(
                         "Deno version {DENO_VERSION}  is required to use Cicada. Upgrade by running {} or using your package manager.", "deno upgrade".bold()
                     ));
                 }
@@ -757,7 +757,7 @@ impl Commands {
                     "cicada",
                     &mut std::io::stdout(),
                 );
-            },
+            }
             Commands::Doctor => {
                 println!("Checking for common problems...");
                 runtime_checks().await;
