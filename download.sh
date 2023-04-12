@@ -24,16 +24,10 @@ case $ARCH in
         ;;
 esac
 
-if command -v zstd >/dev/null 2>&1; then
-    HAS_ZSTD=1
-fi
-
 if [ "$UNAME" = "Darwin" ] && [ "$ARCH" = "x86_64" ]; then
     ARCHIVE="cicada-x86_64-apple-darwin.tar.gz"
 elif [ "$UNAME" = "Darwin" ] && [ "$ARCH" = "aarch64" ]; then
     ARCHIVE="cicada-aarch64-apple-darwin.tar.gz"
-elif [ "$UNAME" = "Linux" ] && [ "$ARCH" = "x86_64" ] && [ "$HAS_ZSTD" = "1" ]; then
-    ARCHIVE="cicada-x86_64-unknown-linux-gnu.tar.zst"
 elif [ "$UNAME" = "Linux" ] && [ "$ARCH" = "x86_64" ]; then
     ARCHIVE="cicada-x86_64-unknown-linux-gnu.tar.gz"
 else
@@ -72,11 +66,8 @@ TMP_DIR=$(mktemp -d)
 curl -fSsL -o "$TMP_DIR/$ARCHIVE" "https://github.com/cicadahq/cicada/releases/latest/download/$ARCHIVE"
 
 # extract the file
-if [ "$HAS_ZSTD" = "1" ]; then
-    tar -I zstd -xvf "$TMP_DIR/$ARCHIVE" -C "$TMP_DIR" >/dev/null
-else
-    tar -xvf "$TMP_DIR/$ARCHIVE" -C "$TMP_DIR" >/dev/null
-fi
+tar -xvf "$TMP_DIR/$ARCHIVE" -C "$TMP_DIR" >/dev/null
+
 
 USER_ID=$(id -u)
 
