@@ -375,10 +375,8 @@ impl Commands {
                     };
 
                     if let Some(iter) = iter {
-                        for secret in iter {
-                            if let Ok((key, value)) = secret {
-                                all_secrets.push((key, value));
-                            }
+                        for (key, value) in iter.flatten() {
+                            all_secrets.push((key, value));
                         }
                     }
                 }
