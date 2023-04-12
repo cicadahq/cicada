@@ -46,24 +46,17 @@ static DENO_LAND_REGEX: Lazy<regex::Regex> =
 fn replace_with_version(s: &str) -> String {
     DENO_LAND_REGEX
         .replace_all(s, |_caps: &regex::Captures| {
-            format!(
-                "deno.land/x/cicada@v{}/",
-                env!("CARGO_PKG_VERSION")
-            )
+            format!("deno.land/x/cicada@v{}/", env!("CARGO_PKG_VERSION"))
         })
         .into_owned()
 }
 
-static LOCAL_CLI_SCRIPT: Lazy<String> = Lazy::new(|| {
-    replace_with_version(include_str!("../scripts/local-cli.ts"))
-});
-static RUNNER_CLI_SCRIPT: Lazy<String> = Lazy::new(|| {
-    replace_with_version(include_str!("../scripts/runner-cli.ts"))
-});
-static DEFAULT_PIPELINE: Lazy<String> = Lazy::new(|| {
-    replace_with_version(include_str!("../scripts/default-pipeline.ts"))
-});
-
+static LOCAL_CLI_SCRIPT: Lazy<String> =
+    Lazy::new(|| replace_with_version(include_str!("../scripts/local-cli.ts")));
+static RUNNER_CLI_SCRIPT: Lazy<String> =
+    Lazy::new(|| replace_with_version(include_str!("../scripts/runner-cli.ts")));
+static DEFAULT_PIPELINE: Lazy<String> =
+    Lazy::new(|| replace_with_version(include_str!("../scripts/default-pipeline.ts")));
 
 const COLORS: [owo_colors::colored::Color; 6] = [
     owo_colors::colored::Color::Blue,
@@ -392,14 +385,13 @@ impl Commands {
 
                 // Load the secrets json file if it exists
                 if let Some(path) = secrets_json {
-                    let secrets: HashMap<String, String> = serde_json::from_str(
-                        &std::fs::read_to_string(&path).with_context(|| {
-                            format!("Could not load secrets json file: {}", path.display())
-                        })?,
-                    )
-                    .with_context(|| {
-                        format!("Could not parse secrets json file: {}", path.display())
-                    })?;
+                    let secrets: HashMap<String, String> =
+                        serde_json::from_str(&std::fs::read_to_string(&path).with_context(
+                            || format!("Could not load secrets json file: {}", path.display()),
+                        )?)
+                        .with_context(|| {
+                            format!("Could not parse secrets json file: {}", path.display())
+                        })?;
 
                     for (key, value) in secrets {
                         all_secrets.push((key, value));
