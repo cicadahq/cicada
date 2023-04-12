@@ -1,4 +1,3 @@
-import { assert } from "https://deno.land/std@0.182.0/testing/asserts.ts";
 import { resolve } from "https://deno.land/std@0.182.0/path/mod.ts";
 import { DockerImages } from "./types/dockerImages.ts";
 
