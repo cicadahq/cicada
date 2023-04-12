@@ -61,7 +61,7 @@ jobs:
           sudo apt-get install -y libssl-dev musl-tools
 
       - uses: Swatinem/rust-cache@v2
-      
+
       - uses: actions-rs/cargo@v1
         with:
           command: build
@@ -72,6 +72,8 @@ jobs:
 
       - name: Upload release (linux)
         if: matrix.target == 'x86_64-unknown-linux-gnu' || matrix.target == 'x86_64-unknown-linux-musl'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           version=${{ steps.version.outputs.version }}
           echo "version=$version"
@@ -93,6 +95,8 @@ jobs:
 
       - name: Upload release (macos)
         if: matrix.target == 'x86_64-apple-darwin' || matrix.target == 'aarch64-apple-darwin'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           version=${{ steps.version.outputs.version }}
           echo "version=$version"
@@ -115,6 +119,8 @@ jobs:
 
       - name: Upload release (windows)
         if: matrix.target == 'x86_64-pc-windows-msvc'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
           version=${{ steps.version.outputs.version }}
