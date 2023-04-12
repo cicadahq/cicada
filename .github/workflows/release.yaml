@@ -34,7 +34,7 @@ jobs:
             os: macos-latest
             features: telemetry,self-update
           - target: x86_64-pc-windows-msvc
-            archive: zip
+            archive: tar.gz
             os: windows-latest
             features: telemetry,self-update
 
@@ -132,7 +132,11 @@ jobs:
           for archive in ${{ matrix.archive }}; do
             if [[ "$archive" == "zip" ]]; then
               OUT_FILE=cicada-${{ matrix.target }}.$archive
-              7z a $OUT_FILE out/cicada.exe
+              7z a $OUT_FILE out/cicada
+            fi
+            if [[ "$archive" == "tar.gz" ]]; then
+              OUT_FILE=cicada-${{ matrix.target }}.$archive
+              tar -czf $OUT_FILE -C out cicada
             fi
             gh release upload $version $OUT_FILE
           done

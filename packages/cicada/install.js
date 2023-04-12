@@ -1,100 +1,85 @@
 const fs = require("fs");
-const os = require("os");
-const path = require("path");
-const axios = require("axios");
-const tar = require("tar");
-const extract = require("extract-zip");
-const packageJson = require("./package.json");
+const zlib = require("zlib");
+const https = require("https");
+const {
+  CICADA_BINARY_PATH,
+  pkgAndSubpathForCurrentPlatform,
+  generateBinPath,
+} = require("./node-platform");
+const CICADA_VERSION = require("./package.json").version;
 
-async function downloadFile(url, outputPath) {
-  const response = await axios({
-    method: "get",
-    url,
-    responseType: "stream",
-  });
-
-  const writer = fs.createWriteStream(outputPath);
-  response.data.pipe(writer);
-
+function fetch(url) {
   return new Promise((resolve, reject) => {
-    writer.on("finish", resolve);
-    writer.on("error", reject);
+    https
+      .get(url, (res) => {
+        if (
+          (res.statusCode === 301 || res.statusCode === 302) &&
+          res.headers.location
+        ) {
+          return fetch(res.headers.location).then(resolve, reject);
+        }
+        if (res.statusCode !== 200) {
+          return reject(new Error(`Server responded with ${res.statusCode}`));
+        }
+        let chunks = [];
+        res.on("data", (chunk) => chunks.push(chunk));
+        res.on("end", () => resolve(Buffer.concat(chunks)));
+      })
+      .on("error", reject);
   });
 }
 
-async function installBinary() {
-  const platform = os.platform();
-  const arch = os.arch();
+function extractFileFromTarGzip(buffer, subpath) {
+  try {
+    buffer = zlib.unzipSync(buffer);
+  } catch (err) {
+    throw new Error(
+      `Invalid gzip data in archive: ${(err && err.message) || err}`
+    );
+  }
+  let str = (i, n) =>
+    String.fromCharCode(...buffer.subarray(i, i + n)).replace(/\0.*$/, "");
+  let offset = 0;
+  // subpath = `package/${subpath}`;
+  while (offset < buffer.length) {
+    let name = str(offset, 100);
+    let size = parseInt(str(offset + 124, 12), 8);
+    offset += 512;
+    if (!isNaN(size)) {
+      if (name === subpath) return buffer.subarray(offset, offset + size);
+      offset += (size + 511) & ~511;
+    }
+  }
+  throw new Error(`Could not find ${JSON.stringify(subpath)} in archive`);
+}
 
-  let binaryFileName;
-  if (platform === "darwin" && arch === "arm64") {
-    binaryFileName = `cicada-aarch64-apple-darwin.tar.gz`;
-  } else if (platform === "darwin" && arch === "x64") {
-    binaryFileName = `cicada-x86_64-apple-darwin.tar.gz`;
-  } else if (platform === "win32" && arch === "x64") {
-    binaryFileName = `cicada-x86_64-pc-windows-msvc.zip`;
-  } else if (platform === "linux" && arch === "x64") {
-    binaryFileName = "cicada-x86_64-unknown-linux-musl.tar.gz";
-  } else {
-    console.error(`Unsupported platform or architecture: ${platform}-${arch}`);
-    process.exit(1);
+async function install() {
+  if (CICADA_BINARY_PATH) {
+    return;
   }
 
-  const binaryUrl =
-    `https://github.com/cicadahq/cicada/releases/download/v${packageJson.version}/${binaryFileName}`;
+  const pkg = pkgAndSubpathForCurrentPlatform();
 
-  let binaryName = `cicada`;
-  if (platform === "win32") {
-    binaryName = `cicada.exe`;
-  }
+  console.error(`[cicada] Fetching package "${pkg}" from GitHub`);
 
-  const binDir = path.join(__dirname, "bin");
-  const binaryPath = path.join(binDir, binaryName);
-
-  if (!fs.existsSync(binDir)) {
-    fs.mkdirSync(binDir);
-  }
-
-  const tempDir = path.join(__dirname, "temp");
-  const tempArchivePath = path.join(tempDir, binaryFileName);
-
-  if (!fs.existsSync(tempDir)) {
-    fs.mkdirSync(tempDir);
-  }
+  const binPath = generateBinPath();
+  const url = `https://github.com/cicadahq/cicada/releases/download/v${CICADA_VERSION}/${pkg}.tar.gz`;
 
   try {
-    await downloadFile(binaryUrl, tempArchivePath);
-
-    let extractedBinaryPath;
-    if (binaryFileName.endsWith(".tar.gz")) {
-      await tar.x({
-        file: tempArchivePath,
-        cwd: tempDir,
-      });
-      extractedBinaryPath = path.join(tempDir, binaryName);
-    } else if (binaryFileName.endsWith(".zip")) {
-      await extract(tempArchivePath, { dir: tempDir });
-      extractedBinaryPath = path.join(tempDir, "out", binaryName);
-    } else {
-      throw new Error(`Unsupported archive format: ${binaryFileName}`);
-    }
-
-    if (fs.existsSync(extractedBinaryPath)) {
-      fs.renameSync(extractedBinaryPath, binaryPath);
-    } else {
-      throw new Error("Could not find the binary in the extracted content.");
-    }
-
-    // Remove temporary files
-    fs.unlinkSync(tempArchivePath);
-    fs.rmdirSync(tempDir, { recursive: true });
-
-    fs.chmodSync(binaryPath, 0o755);
-    console.log(`Downloaded and installed Cicada for ${platform}-${arch}`);
-  } catch (error) {
-    console.error(`Error downloading and installing ${binaryName}:`, error);
-    process.exit(1);
+    const tarGzip = await fetch(url);
+    fs.writeFileSync(binPath, extractFileFromTarGzip(tarGzip, "cicada"));
+    fs.chmodSync(binPath, 0o755);
+  } catch (e) {
+    console.error(
+      `[cicada] Failed to download ${JSON.stringify(url)}: ${
+        (e && e.message) || e
+      }`
+    );
+    throw e;
   }
 }
 
-installBinary();
+install().then(() => {
+  console.log("[cicada] CLI successfully installed");
+  process.exit(0);
+});
