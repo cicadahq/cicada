@@ -47,13 +47,56 @@ if (typeof step === "object") {
 
 let status: number | undefined;
 if (script) {
-  status = (await new Deno.Command("sh", {
-    args: ["-c", script],
-  }).spawn().status).code;
+  try {
+    status = (await new Deno.Command("sh", {
+      args: ["-c", script],
+    }).spawn().status).code;
+  } catch (e) {
+    if (e instanceof Error) {
+      console.error(
+        "%cError:",
+        "color: red; font-weight: bold;",
+        e.message,
+      );
+
+      if (e.stack) {
+        console.error(e.stack);
+      }
+    } else {
+      console.error(
+        "%cError:",
+        "color: red; font-weight: bold;",
+        e,
+      );
+    }
+    status = 1;
+  }
 } else if (fn) {
-  const out = await fn();
-  if (typeof out === "number") {
-    status = out;
+  try {
+    const out = await fn();
+    if (typeof out === "number") {
+      status = out;
+    }
+  } catch (e) {
+    if (e instanceof Error) {
+      console.error(
+        "%cError:",
+        "color: red; font-weight: bold;",
+        e.message,
+      );
+
+      if (e.stack) {
+        console.error(e.stack);
+      }
+    } else {
+      console.error(
+        "%cError:",
+        "color: red; font-weight: bold;",
+        e,
+      );
+    }
+
+    status = 1;
   }
 }
 
