@@ -21,7 +21,7 @@ function fetch(url) {
         if (res.statusCode !== 200) {
           return reject(new Error(`Server responded with ${res.statusCode}`));
         }
-        let chunks = [];
+        const chunks = [];
         res.on("data", (chunk) => chunks.push(chunk));
         res.on("end", () => resolve(Buffer.concat(chunks)));
       })
@@ -34,16 +34,16 @@ function extractFileFromTarGzip(buffer, subpath) {
     buffer = zlib.unzipSync(buffer);
   } catch (err) {
     throw new Error(
-      `Invalid gzip data in archive: ${(err && err.message) || err}`,
+      `Invalid gzip data in archive: ${(err && err.message) || err}`
     );
   }
-  let str = (i, n) =>
+  const str = (i, n) =>
     String.fromCharCode(...buffer.subarray(i, i + n)).replace(/\0.*$/, "");
   let offset = 0;
   // subpath = `package/${subpath}`;
   while (offset < buffer.length) {
-    let name = str(offset, 100);
-    let size = parseInt(str(offset + 124, 12), 8);
+    const name = str(offset, 100);
+    const size = parseInt(str(offset + 124, 12), 8);
     offset += 512;
     if (!isNaN(size)) {
       if (name === subpath) return buffer.subarray(offset, offset + size);
@@ -63,8 +63,7 @@ async function install() {
   console.error(`[cicada] Fetching package "${pkg}" from GitHub`);
 
   const binPath = generateBinPath();
-  const url =
-    `https://github.com/cicadahq/cicada/releases/download/v${CICADA_VERSION}/${pkg}.tar.gz`;
+  const url = `https://github.com/cicadahq/cicada/releases/download/v${CICADA_VERSION}/${pkg}.tar.gz`;
 
   try {
     const tarGzip = await fetch(url);
@@ -74,7 +73,7 @@ async function install() {
     console.error(
       `[cicada] Failed to download ${JSON.stringify(url)}: ${
         (e && e.message) || e
-      }`,
+      }`
     );
     throw e;
   }
