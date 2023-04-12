@@ -10,6 +10,7 @@ mod util;
 
 use anyhow::{bail, Context, Result};
 use clap_complete::generate;
+use once_cell::sync::Lazy;
 use std::{
     ffi::OsStr,
     path::{Path, PathBuf},
@@ -36,10 +37,33 @@ use crate::{
     job::{OnFail, Pipeline},
 };
 
-const LOCAL_CLI_SCRIPT: &str = include_str!("../scripts/local-cli.ts");
-const RUNNER_CLI_SCRIPT: &str = include_str!("../scripts/runner-cli.ts");
-
 const DENO_VERSION: &str = "1.32.3";
+
+// Transform from https://deno.land/x/cicada/lib.ts to https://deno.land/x/cicada@vX.Y.X/lib.ts
+static DENO_LAND_REGEX: Lazy<regex::Regex> =
+    Lazy::new(|| regex::Regex::new(r#"deno.land/x/cicada/"#).unwrap());
+
+fn replace_with_version(s: &str) -> String {
+    DENO_LAND_REGEX
+        .replace_all(s, |_caps: &regex::Captures| {
+            format!(
+                "deno.land/x/cicada@v{}/",
+                env!("CARGO_PKG_VERSION")
+            )
+        })
+        .into_owned()
+}
+
+static LOCAL_CLI_SCRIPT: Lazy<String> = Lazy::new(|| {
+    replace_with_version(include_str!("../scripts/local-cli.ts"))
+});
+static RUNNER_CLI_SCRIPT: Lazy<String> = Lazy::new(|| {
+    replace_with_version(include_str!("../scripts/runner-cli.ts"))
+});
+static DEFAULT_PIPELINE: Lazy<String> = Lazy::new(|| {
+    replace_with_version(include_str!("../scripts/default-pipeline.ts"))
+});
+
 
 const COLORS: [owo_colors::colored::Color; 6] = [
     owo_colors::colored::Color::Blue,
@@ -101,8 +125,10 @@ where
         .arg(format!("--allow-read={}", proj_path.display()))
         .arg(format!("--allow-write={}", out_path.display()))
         .arg("--allow-net")
+        .arg("--allow-env=CICADA_JOB")
         .arg("-")
         .args(args)
+        .current_dir(proj_path)
         .stdin(Stdio::piped())
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
@@ -209,7 +235,7 @@ pub fn resolve_pipeline(pipeline: impl AsRef<Path>) -> Result<PathBuf> {
     Err(anyhow::anyhow!("Could not find pipeline"))
 }
 
-#[derive(Parser)]
+#[derive(Parser, Debug)]
 #[command(author, version, about)]
 enum Commands {
     /// Run a cicada pipeline
@@ -217,7 +243,30 @@ enum Commands {
         /// Path to the pipeline file
         pipeline: PathBuf,
         /// Name of the secret to use, these come from environment variables
-        secrets: Vec<String>,
+        ///
+        /// The CLI will also look for a .env file
+        #[clap(short, long)]
+        secret: Vec<String>,
+
+        /// Do not load .env file
+        #[clap(long)]
+        no_dotenv: bool,
+
+        /// Load a custom .env file
+        ///
+        /// This will override the default .env lookup
+        #[clap(long)]
+        dotenv: Option<PathBuf>,
+
+        /// Load secrets from a json file
+        ///
+        /// They should look like this:
+        /// `{
+        ///     "KEY": "VALUE",
+        ///     "KEY2": "VALUE2"
+        /// }`
+        #[clap(long)]
+        secrets_json: Option<PathBuf>,
     },
     /// Run a step in a cicada workflow
     #[command(hide = true)]
@@ -238,7 +287,13 @@ enum Commands {
 impl Commands {
     async fn execute(self) -> anyhow::Result<()> {
         match self {
-            Commands::Run { pipeline, secrets } => {
+            Commands::Run {
+                pipeline,
+                secret,
+                no_dotenv,
+                dotenv,
+                secrets_json,
+            } => {
                 #[cfg(feature = "self-update")]
                 tokio::join!(check_for_update(), runtime_checks());
 
@@ -268,9 +323,6 @@ impl Commands {
                 let pipeline_url = Url::from_file_path(&pipeline)
                     .map_err(|_| anyhow::anyhow!("Unable to convert pipeline path to URL"))?;
 
-                // set the cwd to the parent of the .cicada directory
-                std::env::set_current_dir(pipeline.parent().unwrap().parent().unwrap())?;
-
                 let (deno_exe, cicada_musl_exe) =
                     tokio::try_join!(download_deno(), download_cicada_musl())?;
 
@@ -285,7 +337,7 @@ impl Commands {
                     let tmp_file = tempfile::NamedTempFile::new()?;
 
                     run_deno_builder(
-                        LOCAL_CLI_SCRIPT,
+                        &LOCAL_CLI_SCRIPT,
                         vec![
                             pipeline_url.to_string().as_ref(),
                             tmp_file.path().to_str().unwrap(),
@@ -308,6 +360,52 @@ impl Commands {
                         .map(|(index, job)| (job.uuid, (index, job))),
                 );
 
+                let mut all_secrets: Vec<(String, String)> = vec![];
+
+                // Look for the secret in the environment or error
+                for secret in secret {
+                    all_secrets.push((
+                        secret.clone(),
+                        std::env::var(&secret).with_context(|| {
+                            format!("Could not find secret in environment: {secret}")
+                        })?,
+                    ));
+                }
+
+                if !no_dotenv {
+                    // Load the .env file if it exists
+                    let iter = match dotenv {
+                        Some(path) => Some(dotenvy::from_path_iter(&path).with_context(|| {
+                            format!("Could not load dotenv file: {}", path.display())
+                        })?),
+                        None => dotenvy::dotenv_iter().ok(),
+                    };
+
+                    if let Some(iter) = iter {
+                        for secret in iter {
+                            if let Ok((key, value)) = secret {
+                                all_secrets.push((key, value));
+                            }
+                        }
+                    }
+                }
+
+                // Load the secrets json file if it exists
+                if let Some(path) = secrets_json {
+                    let secrets: HashMap<String, String> = serde_json::from_str(
+                        &std::fs::read_to_string(&path).with_context(|| {
+                            format!("Could not load secrets json file: {}", path.display())
+                        })?,
+                    )
+                    .with_context(|| {
+                        format!("Could not parse secrets json file: {}", path.display())
+                    })?;
+
+                    for (key, value) in secrets {
+                        all_secrets.push((key, value));
+                    }
+                }
+
                 let nodes: Vec<Node> = jobs
                     .values()
                     .map(|(_, job)| Node::new(job.uuid, job.depends_on.to_vec()))
@@ -317,12 +415,13 @@ impl Commands {
                 for run_group in graph {
                     match futures::future::try_join_all(run_group.into_iter().map(|job| {
                         let (job_index, job) = jobs.remove(&job).unwrap();
-                        let secrets = secrets.clone();
+
                         let gh_repo = gh_repo.clone();
                         let cicada_musl_dir = cicada_musl_dir.to_path_buf();
                         let deno_dir = deno_dir.to_path_buf();
                         let pipeline_file_name = pipeline_file_name.to_os_string();
                         let project_dir = project_dir.to_path_buf();
+                        let all_secrets = all_secrets.clone();
 
                         tokio::spawn(async move {
                             let tag = format!("cicada-{}", job.image);
@@ -342,18 +441,21 @@ impl Commands {
                                 "plain".into(),
                             ];
 
-                            for secret in &secrets {
-                                args.extend(["--secret".into(), format!("id={secret}")]);
+                            for (key, _) in &all_secrets {
+                                args.extend(["--secret".into(), format!("id={key}")]);
                             }
 
                             args.push("-".into());
 
-                            let mut buildx = Command::new("docker")
+                            let mut buildx_cmd = Command::new("docker");
+                            buildx_cmd
                                 .args(args)
                                 .stdin(Stdio::piped())
                                 .stdout(Stdio::piped())
                                 .stderr(Stdio::piped())
-                                .spawn()?;
+                                .envs(all_secrets);
+
+                            let mut buildx = buildx_cmd.spawn()?;
 
                             let dockerfile = job.to_dockerfile(
                                 pipeline_file_name.to_str().unwrap(),
@@ -475,7 +577,7 @@ impl Commands {
             }
             Commands::Step { workflow, step } => {
                 run_deno(
-                    RUNNER_CLI_SCRIPT,
+                    &RUNNER_CLI_SCRIPT,
                     vec![workflow.to_string(), step.to_string()],
                 )
                 .await?;
@@ -529,7 +631,7 @@ impl Commands {
                     std::process::exit(1);
                 }
 
-                tokio::fs::write(&pipeline_path, include_str!("default-pipeline.ts")).await?;
+                tokio::fs::write(&pipeline_path, &*DEFAULT_PIPELINE).await?;
 
                 // Cache deno dependencies
                 if let Ok(mut out) = Command::new("deno")
@@ -557,15 +659,15 @@ impl Commands {
                 check_for_update().await;
 
                 // Check if cicada is initialized
-                if !PathBuf::from(".cicada").exists() {
+                let Ok(dir) = resolve_cicada_dir() else {
                     print_error(format!(
                         "Cicada is not initialized in this directory. Run {} to initialize it.",
                         "cicada init".bold()
                     ));
                     std::process::exit(1);
-                }
+                };
 
-                let pipeline_path = PathBuf::from(".cicada").join(format!("{pipeline}.ts"));
+                let pipeline_path = dir.join(format!("{pipeline}.ts"));
 
                 if pipeline_path.exists() {
                     print_error(format!(
@@ -575,7 +677,7 @@ impl Commands {
                     std::process::exit(1);
                 }
 
-                tokio::fs::write(&pipeline_path, include_str!("default-pipeline.ts")).await?;
+                tokio::fs::write(&pipeline_path, &*DEFAULT_PIPELINE).await?;
 
                 println!();
                 println!(
@@ -649,7 +751,7 @@ impl Commands {
 }
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() {
     #[cfg(feature = "telemetry")]
     let _sentry_guard = sentry_init();
 
@@ -677,7 +779,12 @@ async fn main() -> anyhow::Result<()> {
         join.await.ok();
     }
 
-    res?;
-
-    Ok(())
+    if let Err(err) = res {
+        if std::env::var_os("CICADA_DEBUG").is_some() {
+            print_error(format!("{err:#?}"));
+        } else {
+            print_error(err);
+        }
+        std::process::exit(1);
+    }
 }
