@@ -30,7 +30,7 @@ function generateBinPath() {
   if (CICADA_BINARY_PATH) {
     if (!fs.existsSync(CICADA_BINARY_PATH)) {
       console.warn(
-        `[cicada] Ignoring bad configuration: CICADA_BINARY_PATH=${CICADA_BINARY_PATH}`
+        `[cicada] Ignoring bad configuration: CICADA_BINARY_PATH=${CICADA_BINARY_PATH}`,
       );
     } else {
       return CICADA_BINARY_PATH;
