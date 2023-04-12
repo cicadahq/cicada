@@ -115,7 +115,8 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_github_repo() {
+    #[ignore = "passing only in the upstream repository: cicadahq/cicada"]
+    async fn test_remote_is_github_cicadahq_cicada() {
         let gh = github_repo().await.unwrap().unwrap();
         assert_eq!(gh.owner, "cicadahq");
         assert_eq!(gh.repo, "cicada");
