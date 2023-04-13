@@ -148,6 +148,10 @@ where
 
 /// Check that docker is installed and buildx is installed, other checks before running cicada can be added here
 async fn runtime_checks() {
+    if std::env::var_os("CICADA_SKIP_CHECKS").is_some() {
+        return;
+    }
+
     // Validate docker client version is at least 23
     match Command::new("docker")
         .args(["buildx", "version"])
@@ -155,48 +159,45 @@ async fn runtime_checks() {
         .await
     {
         Ok(output) => {
-            if !output.status.success() {
-                
+            let buildx_error = || {
                 if std::env::consts::OS == "macos" || std::env::consts::OS == "windows" {
                     println!("Cicada requires Docker Desktop v4.12 or above to run. Please upgrade using the Docker Desktop UI");
                 } else {
-                    println!("Cicada requires Docker Buildx to run. Please install it by updating Docker to v4.12 or by manually downloading from from https://github.com/docker/buildx#linux-packages");
+                    println!("Cicada requires Docker Buildx >=0.9 to run. Please install it by updating Docker to v4.12 or by manually downloading from from https://github.com/docker/buildx#linux-packages");
                 }
                 std::process::exit(1);
+            }; 
+
+            if !output.status.success() {
+                buildx_error();
             }
-            
+
             let version_str = String::from_utf8_lossy(&output.stdout);
-            
+
             let version_str_parts = version_str.split_whitespace().collect::<Vec<&str>>();
-            
+
             if version_str_parts[0] != "github.com/docker/buildx" {
-                print_error("Cicada requires Docker Buildx to run. Please install it by updating Docker to v4.12 from Docker Desktop's UI, your package manager, or https://github.com/docker/buildx#linux-packages");
-                std::process::exit(1);
+                buildx_error();
             }
-            
+
             let version = version_str_parts[1]
                 .strip_prefix('v')
                 .unwrap_or(version_str_parts[1]);
             let version_parts = version.split('.').collect::<Vec<&str>>();
-            
+
             let major = version_parts[0].parse::<u32>().unwrap_or_default();
             let minor = version_parts[1].parse::<u32>().unwrap_or_default();
-            
+
             if major == 0 && minor < 9 {
-                if std::env::consts::OS == "macos" || std::env::consts::OS == "windows" {
-                    println!("Cicada requires Docker Desktop v4.12 or above to run. Please upgrade using the Docker Desktop UI");
-                } else {
-                    println!("Cicada requires Docker Buildx to run. Please install it by updating Docker to v4.12 or by manually downloading from from https://github.com/docker/buildx#linux-packages");
-                }
-                std::process::exit(1);
+                buildx_error();
             }
         }
         Err(_) => {
-            println!("Cicada requires Docker to run. Please install it using one of the methods on Install it from https://docs.docker.com/engine/install");
+            println!("Cicada requires Docker to run. Please install it using one of the methods on install it from https://docs.docker.com/engine/install");
             std::process::exit(1);
         }
     }
-    
+
     // Run docker info to check that docker is running
     match Command::new("docker").arg("info").output().await {
         Ok(output) => {
@@ -217,16 +218,16 @@ async fn runtime_checks() {
                 print_error("Cicada requires Deno to run. Please install it using one of the methods on https://deno.land/manual/getting_started/installation");
                 std::process::exit(1);
             }
-            
+
             let output_str = String::from_utf8_lossy(&output.stdout);
             let output_str = output_str.trim();
             let output_str = output_str.strip_prefix("deno ").unwrap_or(output_str);
-            
+
             let Ok(version) = Version::parse(output_str) else {
                 print_error("Could not parse deno version");
                 return;
             };
-            
+
             // Check deno version is compatible with cicada
             if version < Version::parse("1.32.0").unwrap() {
                 if std::env::consts::OS == "macos" {
@@ -234,7 +235,7 @@ async fn runtime_checks() {
                 } else {
                     print_error(format!("Cicada requires Deno version {DENO_VERSION} or above to run. Please upgrade by running {}", "deno upgrade".bold()));
                 }
-                
+
                 std::process::exit(1);
             }
         }
