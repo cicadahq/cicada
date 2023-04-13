@@ -9,6 +9,9 @@ on:
         description: "Version"
         required: true
         type: string
+      skip-release-job:
+        type: boolean
+        default: false
 
 jobs:
   release:
@@ -170,7 +173,7 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v4
         with:
-          context: docker
+          context: ./docker
           file: bin.Dockerfile
           push: true
           tags: cicadahq/cicada-bin:${{ steps.version.outputs.no_prefix_version }},cicadahq/cicada-bin:latest
