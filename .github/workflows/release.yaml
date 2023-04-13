@@ -144,6 +144,18 @@ jobs:
             gh release upload $version $OUT_FILE
           done
 
+      - name: Publish to NPM
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          version=${{ steps.version.outputs.version }}
+          echo "version=$version"
+
+          cd packages/cicada
+          npm version $version
+          npm publish
+
   docker-release:
     name: release docker
     runs-on: ubuntu-latest
