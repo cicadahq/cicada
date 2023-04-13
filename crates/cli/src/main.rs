@@ -184,6 +184,25 @@ async fn runtime_checks() {
 
             if major == 0 && minor < 9 {
                 print_error("Buildx version 0.9 or higher is required to run cicada");
+                if std::env::consts::OS == "macos" || std::env::consts::OS == "windows" {
+                    println!("Please use the Docker Desktop UI to upgrade");
+                } else {
+                    println!("Please update via your package manager or install buildx if you don't have it");
+                }
+                std::process::exit(1);
+            }
+        }
+        Err(_) => {
+            print_error("Docker is required to use Cicada. Install it from https://docs.docker.com/engine/install");
+            std::process::exit(1);
+        }
+    }
+
+    // Run docker info to check that docker is running
+    match Command::new("docker").arg("info").output().await {
+        Ok(output) => {
+            if !output.status.success() {
+                print_error("Docker is not running, please start it to use Cicada");
                 std::process::exit(1);
             }
         }
