@@ -1,4 +1,4 @@
-name: Release
+name: Release Docker
 
 on:
   workflow_dispatch:
@@ -34,6 +34,6 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           context: ./docker
-          file: bin.Dockerfile
+          file: ./docker/bin.Dockerfile
           push: true
           tags: cicadahq/cicada-bin:${{ steps.version.outputs.no_prefix_version }},cicadahq/cicada-bin:latest
