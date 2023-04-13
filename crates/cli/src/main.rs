@@ -166,7 +166,7 @@ async fn runtime_checks() {
                     println!("Cicada requires Docker Buildx >=0.9 to run. Please install it by updating Docker to v4.12 or by manually downloading from from https://github.com/docker/buildx#linux-packages");
                 }
                 std::process::exit(1);
-            }; 
+            };
 
             if !output.status.success() {
                 buildx_error();
