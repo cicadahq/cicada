@@ -1,5 +1,4 @@
 mod dag;
-mod deps;
 mod git;
 mod job;
 #[cfg(feature = "telemetry")]
@@ -33,7 +32,6 @@ use tokio::{
 
 use crate::{
     dag::{invert_graph, topological_sort, Node},
-    deps::download_cicada_musl,
     git::github_repo,
     job::{OnFail, Pipeline},
 };
@@ -310,9 +308,6 @@ enum Commands {
     New { pipeline: String },
     /// Update cicada
     Update,
-    /// Download all dependencies needed for runtime
-    #[command(hide = true)]
-    DownloadDeps,
     /// List all available completions
     Completions { shell: clap_complete::Shell },
     #[command(hide = true)]
@@ -357,10 +352,6 @@ impl Commands {
                 let project_dir = pipeline.parent().unwrap().parent().unwrap();
                 let pipeline_url = Url::from_file_path(&pipeline)
                     .map_err(|_| anyhow::anyhow!("Unable to convert pipeline path to URL"))?;
-
-                let cicada_musl_exe = download_cicada_musl().await?;
-
-                let cicada_musl_dir = cicada_musl_exe.parent().unwrap();
 
                 let gh_repo = github_repo().await.ok().flatten();
 
@@ -447,7 +438,6 @@ impl Commands {
                         let (job_index, job) = jobs.remove(&job).unwrap();
 
                         let gh_repo = gh_repo.clone();
-                        let cicada_musl_dir = cicada_musl_dir.to_path_buf();
                         let pipeline_file_name = pipeline_file_name.to_os_string();
                         let project_dir = project_dir.to_path_buf();
                         let all_secrets = all_secrets.clone();
@@ -462,8 +452,6 @@ impl Commands {
                                 tag,
                                 "--build-context".into(),
                                 format!("local={}", project_dir.to_str().unwrap()),
-                                "--build-context".into(),
-                                format!("cicada-bin={}", cicada_musl_dir.to_str().unwrap()),
                                 "--progress".into(),
                                 "plain".into(),
                             ];
@@ -746,9 +734,6 @@ impl Commands {
                 print_error("self update is not enabled in this build");
                 std::process::exit(1);
             }
-            Commands::DownloadDeps => {
-                download_cicada_musl().await?;
-            }
             Commands::Completions { shell } => {
                 use clap::CommandFactory;
                 generate(
@@ -777,7 +762,6 @@ impl Commands {
             Commands::Init { .. } => "init",
             Commands::New { .. } => "new",
             Commands::Update => "update",
-            Commands::DownloadDeps => "download_deps",
             Commands::Completions { .. } => "completions",
             Commands::Doctor => "doctor",
         }

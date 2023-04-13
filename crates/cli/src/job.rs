@@ -182,17 +182,15 @@ impl Job {
         let mut lines: Vec<String> = vec!["# syntax = docker/dockerfile:1.4".into()];
 
         lines.push(format!("FROM denoland/deno:bin-{DENO_VERSION} as deno-bin"));
+        lines.push(format!(
+            "FROM cicadahq/cicada-bin:{} as cicada-bin",
+            env!("CARGO_PKG_VERSION")
+        ));
 
         lines.push(format!("FROM --platform=linux/amd64 {}", self.image));
         lines.push("ENV CI=true".into());
 
-        // Install cicada bin
-        lines.push(
-            "COPY --from=cicada-bin cicada-x86_64-unknown-linux-musl /usr/local/bin/cicada".into(),
-        );
-
-        // Install deno bin
-
+        lines.push("COPY --from=cicada-bin /cicada /usr/local/bin/cicada".into());
         lines.push("COPY --from=deno-bin /deno /usr/local/bin/deno".into());
 
         // Make working directory

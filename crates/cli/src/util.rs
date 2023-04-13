@@ -4,6 +4,7 @@ use anyhow::Context;
 use anyhow::Result;
 
 /// Data is something persisted between installs
+#[allow(dead_code)]
 pub fn data_path() -> Result<PathBuf> {
     let path = dirs::data_local_dir()
         .context("Could not find data local dir")?
