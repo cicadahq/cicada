@@ -156,58 +156,57 @@ async fn runtime_checks() {
     {
         Ok(output) => {
             if !output.status.success() {
-                print_error("Docker buildx is required to run cicada");
+                
                 if std::env::consts::OS == "macos" || std::env::consts::OS == "windows" {
-                    println!("Please use the Docker Desktop UI to upgrade");
+                    println!("Cicada requires Docker Desktop v4.12 or above to run. Please upgrade using the Docker Desktop UI");
                 } else {
-                    println!("Please update via your package manager or install buildx if you don't have it");
+                    println!("Cicada requires Docker Buildx to run. Please install it by updating Docker to v4.12 or by manually downloading from from https://github.com/docker/buildx#linux-packages");
                 }
                 std::process::exit(1);
             }
-
+            
             let version_str = String::from_utf8_lossy(&output.stdout);
-
+            
             let version_str_parts = version_str.split_whitespace().collect::<Vec<&str>>();
-
+            
             if version_str_parts[0] != "github.com/docker/buildx" {
-                print_error("Docker buildx is required to run cicada");
+                print_error("Cicada requires Docker Buildx to run. Please install it by updating Docker to v4.12 from Docker Desktop's UI, your package manager, or https://github.com/docker/buildx#linux-packages");
                 std::process::exit(1);
             }
-
+            
             let version = version_str_parts[1]
                 .strip_prefix('v')
                 .unwrap_or(version_str_parts[1]);
             let version_parts = version.split('.').collect::<Vec<&str>>();
-
+            
             let major = version_parts[0].parse::<u32>().unwrap_or_default();
             let minor = version_parts[1].parse::<u32>().unwrap_or_default();
-
+            
             if major == 0 && minor < 9 {
-                print_error("Buildx version 0.9 or higher is required to run cicada");
                 if std::env::consts::OS == "macos" || std::env::consts::OS == "windows" {
-                    println!("Please use the Docker Desktop UI to upgrade");
+                    println!("Cicada requires Docker Desktop v4.12 or above to run. Please upgrade using the Docker Desktop UI");
                 } else {
-                    println!("Please update via your package manager or install buildx if you don't have it");
+                    println!("Cicada requires Docker Buildx to run. Please install it by updating Docker to v4.12 or by manually downloading from from https://github.com/docker/buildx#linux-packages");
                 }
                 std::process::exit(1);
             }
         }
         Err(_) => {
-            print_error("Docker is required to use Cicada. Install it from https://docs.docker.com/engine/install");
+            println!("Cicada requires Docker to run. Please install it using one of the methods on Install it from https://docs.docker.com/engine/install");
             std::process::exit(1);
         }
     }
-
+    
     // Run docker info to check that docker is running
     match Command::new("docker").arg("info").output().await {
         Ok(output) => {
             if !output.status.success() {
-                print_error("Docker is not running, please start it to use Cicada");
+                print_error("Docker is not running! Please start it to use Cicada");
                 std::process::exit(1);
             }
         }
         Err(_) => {
-            print_error("Docker is required to use Cicada. Install it from https://docs.docker.com/engine/install");
+            print_error("Cicada requires Docker to run. Please install it using one of the methods on https://docs.docker.com/engine/install");
             std::process::exit(1);
         }
     }
@@ -215,34 +214,32 @@ async fn runtime_checks() {
     match Command::new("deno").arg("-V").output().await {
         Ok(output) => {
             if !output.status.success() {
-                print_error("Deno is required to use Cicada. Install it from: https://deno.land/manual/getting_started/installation");
+                print_error("Cicada requires Deno to run. Please install it using one of the methods on https://deno.land/manual/getting_started/installation");
                 std::process::exit(1);
             }
-
+            
             let output_str = String::from_utf8_lossy(&output.stdout);
             let output_str = output_str.trim();
             let output_str = output_str.strip_prefix("deno ").unwrap_or(output_str);
-
+            
             let Ok(version) = Version::parse(output_str) else {
                 print_error("Could not parse deno version");
                 return;
             };
-
+            
             // Check deno version is compatible with cicada
             if version < Version::parse("1.32.0").unwrap() {
                 if std::env::consts::OS == "macos" {
-                    print_error(format!("Deno version {DENO_VERSION} is required to use Cicada. Upgrade by running {}.", "brew upgrade deno".bold()));
+                    print_error(format!("Cicada requires Deno version {DENO_VERSION} or above to run. Please upgrade by running {}", "brew upgrade deno".bold()));
                 } else {
-                    print_error(format!(
-                        "Deno version {DENO_VERSION}  is required to use Cicada. Upgrade by running {} or using your package manager.", "deno upgrade".bold()
-                    ));
+                    print_error(format!("Cicada requires Deno version {DENO_VERSION} or above to run. Please upgrade by running {}", "deno upgrade".bold()));
                 }
-
+                
                 std::process::exit(1);
             }
         }
         Err(_) => {
-            print_error("Deno is required to use Cicada. Install it from: https://deno.land/manual/getting_started/installation");
+            print_error("Cicada requires Deno to run. Please install it using one of the methods on https://deno.land/manual/getting_started/installation");
             std::process::exit(1);
         }
     }
