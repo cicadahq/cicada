@@ -153,6 +153,7 @@ jobs:
           echo "version=$version"
 
           cd packages/cicada
+          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
           npm version $version
           npm publish
 
