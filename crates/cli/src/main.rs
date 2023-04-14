@@ -257,7 +257,7 @@ pub fn resolve_cicada_dir() -> Result<PathBuf> {
 
         match path.parent() {
             Some(parent) => path = parent.to_path_buf(),
-            None => return Err(anyhow::anyhow!("Could not find cicada.yml")),
+            None => return Err(anyhow::anyhow!("Could not find .cicada directory")),
         }
     }
 }
@@ -392,9 +392,45 @@ impl Commands {
                     std::fs::read_to_string(tmp_file.path())?
                 };
 
-                let deser = serde_json::from_str::<Pipeline>(&out)?;
+                let pipeline = serde_json::from_str::<Pipeline>(&out)?;
+
+                if let Ok(git_event) = std::env::var("CICADA_GIT_EVENT") {
+                    if let Ok(base_ref) = std::env::var("CICADA_BASE_REF") {
+                        match pipeline.on {
+                            Some(job::Trigger::Options { push, pull_request }) => match &*git_event
+                            {
+                                "pull_request" => {
+                                    if !pull_request.contains(&base_ref) {
+                                        println!(
+                                            "Skipping pipeline because branch {} is not in {}: {:?}", base_ref.bold(), 
+                                            "pull_request".bold(),
+                                            pull_request
+                                        );
+                                        std::process::exit(2);
+                                    }
+                                }
+                                "push" => {
+                                    if !push.contains(&base_ref) {
+                                        println!(
+                                            "Skipping pipeline because branch {} is not in {}: {:?}", base_ref.bold(),
+                                            "push".bold(),
+                                            push
+                                        );
+                                        std::process::exit(2);
+                                    }
+                                }
+                                _ => (),
+                            },
+                            Some(job::Trigger::DenoFunction) => {
+                                anyhow::bail!("TypeScript trigger functions are unimplemented")
+                            }
+                            None => (),
+                        }
+                    }
+                }
+
                 let mut jobs = HashMap::from_iter(
-                    deser
+                    pipeline
                         .jobs
                         .into_iter()
                         .enumerate()

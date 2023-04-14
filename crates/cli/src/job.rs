@@ -58,6 +58,19 @@ impl CacheDirectory {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[serde(tag = "type")]
+pub enum Trigger {
+    Options {
+        #[serde(default)]
+        push: Vec<String>,
+        #[serde(default)]
+        pull_request: Vec<String>,
+    },
+    DenoFunction,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(tag = "type")]
 pub enum StepRun {
     Command { command: String },
     DenoFunction,
@@ -183,7 +196,7 @@ impl Job {
 
         lines.push(format!("FROM denoland/deno:bin-{DENO_VERSION} as deno-bin"));
         lines.push(format!(
-            "FROM cicadahq/cicada-bin:{} as cicada-bin",
+            "FROM --platform=linux/amd64 cicadahq/cicada-bin:{} as cicada-bin",
             env!("CARGO_PKG_VERSION")
         ));
 
@@ -237,4 +250,5 @@ impl Job {
 #[serde(rename_all = "camelCase")]
 pub struct Pipeline {
     pub jobs: Vec<Job>,
+    pub on: Option<Trigger>,
 }

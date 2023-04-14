@@ -149,6 +149,43 @@ export class Job {
 }
 
 /**
+ * A git branch represented as a string.
+ */
+export type Branch = string;
+
+/**
+ * The declarative options for a trigger.
+ */
+export interface TriggerOptions {
+  push?: Branch[];
+  pullRequest?: Branch[];
+}
+
+/**
+ * A trigger function that returns a boolean value indicating whether the pipeline should run.
+ */
+// export type TriggerFn = () => boolean | Promise<boolean>;
+
+/**
+ * The trigger for a pipeline
+ */
+export type Trigger = TriggerOptions; //TriggerFn | TriggerOptions;
+
+/**
+ * The options for a pipeline, including the name and the conditions under which the pipeline should run.
+ */
+export interface PipelineOptions {
+  /**
+   * The name of the pipeline
+   */
+  name?: string;
+  /**
+   * The trigger declares the conditions under which the pipeline should run.
+   */
+  on: Trigger;
+}
+
+/**
  * Represents a pipeline containing an array of jobs.
  */
 export class Pipeline {
@@ -157,20 +194,9 @@ export class Pipeline {
   /**
    * Creates a new Pipeline instance.
    * @param jobs - An array of jobs to include in the pipeline.
+   * @param options - The options for the pipeline.
    */
-  constructor(jobs: [Job, ...Job[]]);
-
-  /**
-   * Creates a new Pipeline instance.
-   * @param jobs - A spread of jobs to include in the pipeline.
-   */
-  constructor(...jobs: [Job, ...Job[]]);
-
-  /**
-   * Internal constructor implementation for creating a Pipeline instance.
-   * @param jobs - Either an array of job arrays or a single job array.
-   */
-  constructor(...jobs: [Job, ...Job[]][] | [Job, ...Job[]]) {
+  constructor(jobs: [Job, ...Job[]], public options?: PipelineOptions) {
     this.jobs = jobs.flat();
   }
 }
