@@ -1,7 +1,7 @@
 [package]
 name = "cicada-cli"
 description = "Write CI/CD Pipelines in TypeScript"
-version = "0.1.32"
+version = "0.1.34"
 readme = "../../README.md"
 edition.workspace = true
 homepage.workspace = true
