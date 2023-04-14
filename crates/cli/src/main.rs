@@ -114,10 +114,11 @@ where
 {
     let mut child = Command::new("deno")
         .arg("run")
-        .arg(format!("--allow-read={}", proj_path.display()))
+        // .arg(format!("--allow-read={}", proj_path.display()))
         .arg(format!("--allow-write={}", out_path.display()))
         .arg("--allow-net")
         .arg("--allow-env=CICADA_JOB")
+        .arg("--allow-read")
         .arg("-")
         .args(args)
         .current_dir(proj_path)
@@ -401,13 +402,21 @@ impl Commands {
                             {
                                 "pull_request" => {
                                     if !pull_request.contains(&base_ref) {
-                                        println!("Skipping pipeline because pull_request is false");
+                                        println!(
+                                            "Skipping pipeline because branch {} is not in {}: {:?}", base_ref.bold(), 
+                                            "pull_request".bold(),
+                                            pull_request
+                                        );
                                         std::process::exit(2);
                                     }
                                 }
                                 "push" => {
                                     if !push.contains(&base_ref) {
-                                        println!("Skipping pipeline because push is false");
+                                        println!(
+                                            "Skipping pipeline because branch {} is not in {}: {:?}", base_ref.bold(),
+                                            "push".bold(),
+                                            push
+                                        );
                                         std::process::exit(2);
                                     }
                                 }

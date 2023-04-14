@@ -196,7 +196,7 @@ impl Job {
 
         lines.push(format!("FROM denoland/deno:bin-{DENO_VERSION} as deno-bin"));
         lines.push(format!(
-            "FROM cicadahq/cicada-bin:{} as cicada-bin",
+            "FROM --platform=linux/amd64 cicadahq/cicada-bin:{} as cicada-bin",
             env!("CARGO_PKG_VERSION")
         ));
 

@@ -47,10 +47,7 @@ type SerializedTrigger =
 
 type SerializedPipeline = {
   jobs: SerializedJob[];
-  options: {
-    name?: string;
-    on: SerializedTrigger;
-  };
+  on: SerializedTrigger;
 };
 
 type SerializedRun =
@@ -150,10 +147,8 @@ const serializePipeline = (pipeline: Pipeline): SerializedPipeline => {
 
   return {
     jobs,
-    options: {
-      name: pipeline.options?.name ?? undefined,
-      on: serializeTrigger(pipeline.options?.on),
-    },
+    // name: pipeline.options?.name ?? undefined,
+    on: serializeTrigger(pipeline.options?.on),
   };
 };
 
