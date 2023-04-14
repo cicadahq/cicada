@@ -158,18 +158,19 @@ export type Branch = string;
  * The declarative options for a trigger.
  */
 export interface TriggerOptions { 
-  push: Branch[]
+  push: Branch[],
+  pullRequest: Branch[],
 }
 
 /**
  * A trigger function that returns a boolean value indicating whether the pipeline should run.
  */
-export type TriggerFn = () => boolean | Promise<boolean>;
+// export type TriggerFn = () => boolean | Promise<boolean>;
 
 /**
  * The trigger for a pipeline
  */
-export type Trigger = TriggerFn | TriggerOptions;
+export type Trigger = TriggerOptions; //TriggerFn | TriggerOptions;
 
 /**
  * The options for a pipeline, including the name and the conditions under which the pipeline should run.

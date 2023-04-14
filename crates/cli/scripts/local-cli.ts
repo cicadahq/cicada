@@ -4,6 +4,7 @@ import {
   Pipeline,
   Step,
   StepFn,
+Trigger,
 } from "https://deno.land/x/cicada/lib.ts";
 
 const mapCache = (
@@ -33,6 +34,25 @@ Deno.stat(new URL(modulePath)).catch(() => {
 
 const module = await import(modulePath);
 const pipeline: Pipeline = module.default;
+
+type SerializedTrigger = 
+| {
+  type: "options";
+  push: string[];
+  pullRequest: string[];
+}
+| {
+  type: "denoFunction";
+
+}
+
+type SerializedPipeline = {
+  jobs: SerializedJob[];
+  options: {
+    name?: string;
+    on: SerializedTrigger
+  };
+}
 
 type SerializedRun =
   | {
@@ -104,7 +124,17 @@ const serializeStep = (step: Step): SerializedStep => {
   }
 };
 
-const serializePipeline = (pipeline: Pipeline) => {
+const serializeTrigger = (trigger?: Trigger): SerializedTrigger => {
+
+  return {
+    type: "options",
+    push: trigger?.push ?? [],
+    pullRequest: trigger?.pullRequest ?? [],
+  }
+}
+
+
+const serializePipeline = (pipeline: Pipeline): SerializedPipeline => {
   const jobs: SerializedJob[] = [];
 
   for (const job of pipeline.jobs) {
@@ -121,9 +151,16 @@ const serializePipeline = (pipeline: Pipeline) => {
     });
   }
 
-  return JSON.stringify({ jobs }, null, 2);
+  return {
+    jobs,
+    options: {
+      name: pipeline.options?.name ?? undefined,
+      on: serializeTrigger(pipeline.options?.on)
+    },
+
+  }
 };
 
 const serializedPipeline = serializePipeline(pipeline);
 
-await Deno.writeTextFile(outPath, serializedPipeline);
+await Deno.writeTextFile(outPath, JSON.stringify(serializedPipeline, null, 2));

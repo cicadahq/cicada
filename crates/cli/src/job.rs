@@ -61,7 +61,9 @@ impl CacheDirectory {
 pub enum Trigger {
     Options { 
         #[serde(default)]
-        push: Vec<String>
+        push: Vec<String>,
+        #[serde(default)]
+        pull_request: Vec<String>
     },
     DenoFunction,
 }

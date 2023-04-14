@@ -294,18 +294,31 @@ impl Commands {
 
                 let pipeline = serde_json::from_str::<Pipeline>(&out)?;
 
-                if let Some(base_ref) = std::env::var_os("CICADA_BASE_REF") {
-                    match pipeline.on {
-                        Some(job::Trigger::Options { push }) => {
-                            if let Some(base_ref) = base_ref.to_str() {
-                                if push.contains(&base_ref.to_string()) {
-                                    println!("Skipping pipeline because base ref is not in push.branches");
-                                    std::process::exit(1);
+                if let Ok(git_event) = std::env::var("CICADA_GIT_EVENT") {
+                    if let Ok(base_ref) = std::env::var("CICADA_BASE_REF") {
+                        match pipeline.on {
+                            Some(job::Trigger::Options { push, pull_request }) => {
+                                match &*git_event {
+                                    "pull_request" => {
+                                        if !pull_request.contains(&base_ref) {
+                                            println!("Skipping pipeline because pull_request is false");
+                                            std::process::exit(1);
+                                        }
+                                    }
+                                    "push" => {
+                                        if !push.contains(&base_ref) {
+                                            println!("Skipping pipeline because push is false");
+                                            std::process::exit(1);
+                                        }
+                                    }
+                                    _ => (),
                                 }
                             }
-                        },
-                        Some(job::Trigger::DenoFunction) => todo!("TypeScript trigger functions are unimplemented"),
-                        None => (),
+                            Some(job::Trigger::DenoFunction) => {
+                                anyhow::bail!("TypeScript trigger functions are unimplemented")
+                            }
+                            None => (),
+                        }
                     }
                 }
 
