@@ -15,7 +15,7 @@ on:
 
 jobs:
   release:
-    name: release ${{ matrix.target }}
+    name: Release ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -144,8 +144,24 @@ jobs:
             gh release upload $version $OUT_FILE
           done
 
+  npm-release:
+    name: Release to NPM
+    runs-on: ubuntu-latest
+    needs: release
+    steps:
+      - uses: actions/checkout@master
+      - name: Set version
+        id: version
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            version=${{ github.event.inputs.version }}
+          else
+            version=${{ github.ref_name }}
+          fi
+          echo "version=$version" >> $GITHUB_OUTPUT
+          echo "no_prefix_version=${version#v}" >> $GITHUB_OUTPUT
       - name: Publish to NPM
-        if: matrix.target == 'x86_64-unknown-linux-gnu'
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
@@ -158,7 +174,7 @@ jobs:
           npm publish
 
   docker-release:
-    name: release docker
+    name: Release to Docker Hub
     runs-on: ubuntu-latest
     needs: release
     steps:
