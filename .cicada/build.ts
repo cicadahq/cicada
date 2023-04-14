@@ -1,6 +1,4 @@
-import { Job, Pipeline, Secret } from "https://deno.land/x/cicada/lib.ts";
-
-const secret1 = new Secret("TEST_VAR");
+import { Job, Pipeline } from "https://deno.land/x/cicada/lib.ts";
 
 const muslJob = new Job({
   image: "rust:latest",
@@ -14,13 +12,6 @@ const muslJob = new Job({
 const gnuJob = new Job({
   image: "rust:latest",
   steps: [
-    {
-      run: () => {
-        const val = secret1.valueSync();
-        console.log(`test - ${val}`);
-      },
-      secrets: [secret1],
-    },
     "cargo build -p cicada-cli --release",
   ],
 });
