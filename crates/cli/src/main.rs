@@ -302,13 +302,13 @@ impl Commands {
                                 "pull_request" => {
                                     if !pull_request.contains(&base_ref) {
                                         println!("Skipping pipeline because pull_request is false");
-                                        std::process::exit(1);
+                                        std::process::exit(2);
                                     }
                                 }
                                 "push" => {
                                     if !push.contains(&base_ref) {
                                         println!("Skipping pipeline because push is false");
-                                        std::process::exit(1);
+                                        std::process::exit(2);
                                     }
                                 }
                                 _ => (),
