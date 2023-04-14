@@ -180,7 +180,7 @@ pub fn resolve_cicada_dir() -> Result<PathBuf> {
 
         match path.parent() {
             Some(parent) => path = parent.to_path_buf(),
-            None => return Err(anyhow::anyhow!("Could not find cicada.yml")),
+            None => return Err(anyhow::anyhow!("Could not find .cicada directory")),
         }
     }
 }

@@ -1,4 +1,4 @@
-import { Job, Pipeline, PipelineOptions } from "https://deno.land/x/cicada/lib.ts";
+import { Job, Pipeline } from "https://deno.land/x/cicada/lib.ts";
 
 const job = new Job({
   name: "Simple job",
