@@ -1,0 +1,13 @@
+{
+  "name": "jest-tests",
+  "version": "1.0.0",
+  "description": "",
+  "main": "lib.js",
+  "module": "lib.js",
+  "scripts": {
+    "test": "jest"
+  },
+  "dependencies": {
+    "jest": "^29.5.0"
+  }
+}

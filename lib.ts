@@ -158,8 +158,8 @@ export type Branch = string;
  * The declarative options for a trigger.
  */
 export interface TriggerOptions {
-  push: Branch[];
-  pullRequest: Branch[];
+  push?: Branch[];
+  pullRequest?: Branch[];
 }
 
 /**
