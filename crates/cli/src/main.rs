@@ -152,12 +152,16 @@ async fn runtime_checks() {
         return;
     }
 
+    let (docker_buildx_version, docker_info, deno_version) = tokio::join!(
+        Command::new("docker").args(["buildx", "version"]).output(),
+        Command::new("docker")
+            .args(["info", "--format", "{{json .}}"])
+            .output(),
+        Command::new("deno").args(["--version"]).output(),
+    );
+
     // Validate docker client version is at least 23
-    match Command::new("docker")
-        .args(["buildx", "version"])
-        .output()
-        .await
-    {
+    match docker_buildx_version {
         Ok(output) => {
             let buildx_error = || {
                 if std::env::consts::OS == "macos" || std::env::consts::OS == "windows" {
@@ -199,7 +203,7 @@ async fn runtime_checks() {
     }
 
     // Run docker info to check that docker is running
-    match Command::new("docker").arg("info").output().await {
+    match docker_info {
         Ok(output) => {
             if !output.status.success() {
                 print_error("Docker is not running! Please start it to use Cicada");
@@ -212,7 +216,7 @@ async fn runtime_checks() {
         }
     }
 
-    match Command::new("deno").arg("-V").output().await {
+    match deno_version {
         Ok(output) => {
             if !output.status.success() {
                 print_error("Cicada requires Deno to run. Please install it using one of the methods on https://deno.land/manual/getting_started/installation");
@@ -394,38 +398,37 @@ impl Commands {
 
                 let pipeline = serde_json::from_str::<Pipeline>(&out)?;
 
-                if let Ok(git_event) = std::env::var("CICADA_GIT_EVENT") {
-                    if let Ok(base_ref) = std::env::var("CICADA_BASE_REF") {
-                        match pipeline.on {
-                            Some(job::Trigger::Options { push, pull_request }) => match &*git_event
-                            {
-                                "pull_request" => {
-                                    if !pull_request.contains(&base_ref) {
-                                        println!(
-                                            "Skipping pipeline because branch {} is not in {}: {:?}", base_ref.bold(), 
-                                            "pull_request".bold(),
-                                            pull_request
-                                        );
-                                        std::process::exit(2);
-                                    }
-                                }
-                                "push" => {
-                                    if !push.contains(&base_ref) {
-                                        println!(
-                                            "Skipping pipeline because branch {} is not in {}: {:?}", base_ref.bold(),
-                                            "push".bold(),
-                                            push
-                                        );
-                                        std::process::exit(2);
-                                    }
-                                }
-                                _ => (),
-                            },
-                            Some(job::Trigger::DenoFunction) => {
-                                anyhow::bail!("TypeScript trigger functions are unimplemented")
+                // Check if we should run this pipeline based on the git event
+                if let (Ok(git_event), Ok(base_ref)) = (
+                    std::env::var("CICADA_GIT_EVENT"),
+                    std::env::var("CICADA_BASE_REF"),
+                ) {
+                    match pipeline.on {
+                        Some(job::Trigger::Options { push, pull_request }) => match &*git_event {
+                            "pull_request" if !pull_request.contains(&base_ref) => {
+                                println!(
+                                    "Skipping pipeline because branch {} is not in {}: {:?}",
+                                    base_ref.bold(),
+                                    "pull_request".bold(),
+                                    pull_request
+                                );
+                                std::process::exit(2);
                             }
-                            None => (),
+                            "push" if !push.contains(&base_ref) => {
+                                println!(
+                                    "Skipping pipeline because branch {} is not in {}: {:?}",
+                                    base_ref.bold(),
+                                    "push".bold(),
+                                    push
+                                );
+                                std::process::exit(2);
+                            }
+                            _ => {}
+                        },
+                        Some(job::Trigger::DenoFunction) => {
+                            anyhow::bail!("TypeScript trigger functions are unimplemented")
                         }
+                        None => {}
                     }
                 }
 
