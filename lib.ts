@@ -157,9 +157,9 @@ export type Branch = string;
 /**
  * The declarative options for a trigger.
  */
-export interface TriggerOptions { 
-  push: Branch[],
-  pullRequest: Branch[],
+export interface TriggerOptions {
+  push: Branch[];
+  pullRequest: Branch[];
 }
 
 /**
@@ -181,8 +181,8 @@ export interface PipelineOptions {
    */
   name?: string;
   /**
-  * The trigger declares the conditions under which the pipeline should run.
-  */
+   * The trigger declares the conditions under which the pipeline should run.
+   */
   on: Trigger;
 }
 
@@ -191,7 +191,6 @@ export interface PipelineOptions {
  */
 export class Pipeline {
   public jobs: Job[];
-
 
   /**
    * Creates a new Pipeline instance.

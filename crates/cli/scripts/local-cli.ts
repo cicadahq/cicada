@@ -4,7 +4,7 @@ import {
   Pipeline,
   Step,
   StepFn,
-Trigger,
+  Trigger,
 } from "https://deno.land/x/cicada/lib.ts";
 
 const mapCache = (
@@ -35,24 +35,23 @@ Deno.stat(new URL(modulePath)).catch(() => {
 const module = await import(modulePath);
 const pipeline: Pipeline = module.default;
 
-type SerializedTrigger = 
-| {
-  type: "options";
-  push: string[];
-  pullRequest: string[];
-}
-| {
-  type: "denoFunction";
-
-}
+type SerializedTrigger =
+  | {
+    type: "options";
+    push: string[];
+    pullRequest: string[];
+  }
+  | {
+    type: "denoFunction";
+  };
 
 type SerializedPipeline = {
   jobs: SerializedJob[];
   options: {
     name?: string;
-    on: SerializedTrigger
+    on: SerializedTrigger;
   };
-}
+};
 
 type SerializedRun =
   | {
@@ -125,14 +124,12 @@ const serializeStep = (step: Step): SerializedStep => {
 };
 
 const serializeTrigger = (trigger?: Trigger): SerializedTrigger => {
-
   return {
     type: "options",
     push: trigger?.push ?? [],
     pullRequest: trigger?.pullRequest ?? [],
-  }
-}
-
+  };
+};
 
 const serializePipeline = (pipeline: Pipeline): SerializedPipeline => {
   const jobs: SerializedJob[] = [];
@@ -155,10 +152,9 @@ const serializePipeline = (pipeline: Pipeline): SerializedPipeline => {
     jobs,
     options: {
       name: pipeline.options?.name ?? undefined,
-      on: serializeTrigger(pipeline.options?.on)
+      on: serializeTrigger(pipeline.options?.on),
     },
-
-  }
+  };
 };
 
 const serializedPipeline = serializePipeline(pipeline);

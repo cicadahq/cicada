@@ -59,11 +59,11 @@ impl CacheDirectory {
 #[serde(rename_all = "camelCase")]
 #[serde(tag = "type")]
 pub enum Trigger {
-    Options { 
+    Options {
         #[serde(default)]
         push: Vec<String>,
         #[serde(default)]
-        pull_request: Vec<String>
+        pull_request: Vec<String>,
     },
     DenoFunction,
 }
@@ -247,5 +247,5 @@ impl Job {
 #[serde(rename_all = "camelCase")]
 pub struct Pipeline {
     pub jobs: Vec<Job>,
-    pub on: Option<Trigger>
+    pub on: Option<Trigger>,
 }
