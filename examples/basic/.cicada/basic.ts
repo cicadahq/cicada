@@ -19,9 +19,8 @@ const job = new Job({
   ],
 });
 
-
 export default new Pipeline([job], {
   on: {
-    push: [ "main" ]
-  }
+    push: ["main"],
+  },
 });

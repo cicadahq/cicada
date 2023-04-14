@@ -5,10 +5,10 @@ import {
 
 const joba = new Job({
   image: "docker",
-  steps: []
+  steps: [],
 });
 
-joba.options.dependsOn
+joba.options.dependsOn;
 
 // Build a job for each Node.js version
 const jobs: Job[] = ["14", "16", "18"].map((nodeVersion) =>
@@ -21,7 +21,7 @@ const jobs: Job[] = ["14", "16", "18"].map((nodeVersion) =>
         name: "Install dependencies",
         run: "npm set cache .npm && npm install",
       },
-      
+
       {
         name: "Run tests",
         run: "npm run test",
