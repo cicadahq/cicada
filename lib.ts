@@ -1,4 +1,3 @@
-import { assert } from "https://deno.land/std@0.182.0/testing/asserts.ts";
 import { resolve } from "https://deno.land/std@0.182.0/path/mod.ts";
 import { DockerImages } from "./types/dockerImages.ts";
 
@@ -214,19 +213,21 @@ export class Secret {
    */
   constructor(public name: string) {
     if (!Secret.#isInJob) return;
+    this.#path = resolve(Secret.#secretsDir, name);
+  }
 
+  /**
+   * A check that the secret file exists to avoid a cryptic error message.
+   */
+  #assertFileExists = () => {
     try {
-      const path = resolve(Secret.#secretsDir, name);
-
-      assert(Deno.statSync(path).isFile);
-
-      this.#path = path;
-    } catch (_e) {
+      Deno.statSync(this.#path);
+    } catch (_) {
       throw new Error(
-        `Secret \`${name}\` is not available in this job, make sure it is specified in the job options.`,
+        `Secret \`${this.name}\` is not available in this job, make sure it is specified in the job options.`,
       );
     }
-  }
+  };
 
   /**
    * Get a secret value from the secrets directory. The secret is only available during the job if it is specified in the job options.
@@ -238,6 +239,8 @@ export class Secret {
     if (!Secret.#isInJob) {
       throw new Error("Secrets are only available during a job.");
     }
+
+    this.#assertFileExists();
 
     return Deno.readTextFile(this.#path);
   }
@@ -252,6 +255,8 @@ export class Secret {
     if (!Secret.#isInJob) {
       throw new Error("Secrets are only available during a job.");
     }
+
+    this.#assertFileExists();
 
     return Deno.readTextFileSync(this.#path);
   }

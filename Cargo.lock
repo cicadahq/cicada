@@ -169,7 +169,7 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "cicada-cli"
-version = "0.1.29"
+version = "0.1.32"
 dependencies = [
  "ahash",
  "anyhow",
@@ -178,6 +178,7 @@ dependencies = [
  "clap",
  "clap_complete",
  "dirs",
+ "dotenvy",
  "futures",
  "indicatif",
  "once_cell",
@@ -330,6 +331,12 @@ dependencies = [
  "redox_users",
  "windows-sys 0.45.0",
 ]
+
+[[package]]
+name = "dotenvy"
+version = "0.15.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1aaf95b3e5c8f23aa320147307562d361db0ae0d51242340f558153b4eb2439b"
 
 [[package]]
 name = "either"

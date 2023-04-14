@@ -1,8 +1,9 @@
-#[cfg(not(target_env = "musl"))]
 use self_update::update::ReleaseUpdate;
 
+#[cfg(target_env = "musl")]
+compile_error!("Musl does not support self-update");
+
 /// Check for a new version of Cicada and print a message if there is one
-#[cfg(not(target_env = "musl"))]
 pub async fn check_for_update() {
     use std::time::SystemTime;
 
@@ -91,15 +92,12 @@ pub async fn check_for_update() {
     }
 }
 
-#[cfg(target_env = "musl")]
-pub async fn check_for_update() {}
-
-#[cfg(not(target_env = "musl"))]
 pub fn self_update_release() -> anyhow::Result<Box<dyn ReleaseUpdate>> {
     let bin_name = match (std::env::consts::OS, std::env::consts::ARCH) {
         ("linux", "x86_64") => "cicada-x86_64-unknown-linux-gnu.tar.gz",
         ("macos", "x86_64") => "cicada-x86_64-apple-darwin.tar.gz",
         ("macos", "aarch64") => "cicada-aarch64-apple-darwin.tar.gz",
+        ("windows", "x86_64") => "cicada-x86_64-pc-windows-msvc.zip",
         _ => anyhow::bail!("Unsupported OS"),
     };
 

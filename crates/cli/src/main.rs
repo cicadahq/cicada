@@ -1,22 +1,26 @@
 mod dag;
-mod deps;
 mod git;
 mod job;
-mod segment;
+#[cfg(feature = "telemetry")]
+mod telemetry;
+#[cfg(feature = "self-update")]
 mod update;
 mod util;
 
 use anyhow::{bail, Context, Result};
 use clap_complete::generate;
-use segment::TrackEvent;
+use once_cell::sync::Lazy;
+use semver::Version;
 use std::{
     ffi::OsStr,
     path::{Path, PathBuf},
     process::Stdio,
 };
+#[cfg(feature = "telemetry")]
+use telemetry::{segment::TrackEvent, segment_enabled, sentry::sentry_init};
+#[cfg(feature = "self-update")]
 use update::check_for_update;
 use url::Url;
-use util::telemetry_enabled;
 
 use ahash::HashMap;
 use clap::Parser;
@@ -28,15 +32,30 @@ use tokio::{
 
 use crate::{
     dag::{invert_graph, topological_sort, Node},
-    deps::{download_cicada_musl, download_deno},
     git::github_repo,
     job::{OnFail, Pipeline},
 };
 
-const LOCAL_CLI_SCRIPT: &str = include_str!("../scripts/local-cli.ts");
-const RUNNER_CLI_SCRIPT: &str = include_str!("../scripts/runner-cli.ts");
-
 const DENO_VERSION: &str = "1.32.3";
+
+// Transform from https://deno.land/x/cicada/lib.ts to https://deno.land/x/cicada@vX.Y.X/lib.ts
+static DENO_LAND_REGEX: Lazy<regex::Regex> =
+    Lazy::new(|| regex::Regex::new(r#"deno.land/x/cicada/"#).unwrap());
+
+fn replace_with_version(s: &str) -> String {
+    DENO_LAND_REGEX
+        .replace_all(s, |_caps: &regex::Captures| {
+            format!("deno.land/x/cicada@v{}/", env!("CARGO_PKG_VERSION"))
+        })
+        .into_owned()
+}
+
+static LOCAL_CLI_SCRIPT: Lazy<String> =
+    Lazy::new(|| replace_with_version(include_str!("../scripts/local-cli.ts")));
+static RUNNER_CLI_SCRIPT: Lazy<String> =
+    Lazy::new(|| replace_with_version(include_str!("../scripts/runner-cli.ts")));
+static DEFAULT_PIPELINE: Lazy<String> =
+    Lazy::new(|| replace_with_version(include_str!("../scripts/default-pipeline.ts")));
 
 const COLORS: [owo_colors::colored::Color; 6] = [
     owo_colors::colored::Color::Blue,
@@ -98,8 +117,10 @@ where
         .arg(format!("--allow-read={}", proj_path.display()))
         .arg(format!("--allow-write={}", out_path.display()))
         .arg("--allow-net")
+        .arg("--allow-env=CICADA_JOB")
         .arg("-")
         .args(args)
+        .current_dir(proj_path)
         .stdin(Stdio::piped())
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
@@ -127,6 +148,10 @@ where
 
 /// Check that docker is installed and buildx is installed, other checks before running cicada can be added here
 async fn runtime_checks() {
+    if std::env::var_os("CICADA_SKIP_CHECKS").is_some() {
+        return;
+    }
+
     // Validate docker client version is at least 23
     match Command::new("docker")
         .args(["buildx", "version"])
@@ -134,10 +159,17 @@ async fn runtime_checks() {
         .await
     {
         Ok(output) => {
-            if !output.status.success() {
-                print_error("Docker buildx is required to run cicada");
-                println!("Update docker if you are using Docker Desktop or install buildx if you are on Linux");
+            let buildx_error = || {
+                if std::env::consts::OS == "macos" || std::env::consts::OS == "windows" {
+                    println!("Cicada requires Docker Desktop v4.12 or above to run. Please upgrade using the Docker Desktop UI");
+                } else {
+                    println!("Cicada requires Docker Buildx >=0.9 to run. Please install it by updating Docker to v4.12 or by manually downloading from from https://github.com/docker/buildx#linux-packages");
+                }
                 std::process::exit(1);
+            };
+
+            if !output.status.success() {
+                buildx_error();
             }
 
             let version_str = String::from_utf8_lossy(&output.stdout);
@@ -145,8 +177,7 @@ async fn runtime_checks() {
             let version_str_parts = version_str.split_whitespace().collect::<Vec<&str>>();
 
             if version_str_parts[0] != "github.com/docker/buildx" {
-                print_error("Docker buildx is required to run cicada");
-                std::process::exit(1);
+                buildx_error();
             }
 
             let version = version_str_parts[1]
@@ -158,12 +189,58 @@ async fn runtime_checks() {
             let minor = version_parts[1].parse::<u32>().unwrap_or_default();
 
             if major == 0 && minor < 9 {
-                print_error("Buildx version 0.9 or higher is required to run cicada");
+                buildx_error();
+            }
+        }
+        Err(_) => {
+            println!("Cicada requires Docker to run. Please install it using one of the methods on install it from https://docs.docker.com/engine/install");
+            std::process::exit(1);
+        }
+    }
+
+    // Run docker info to check that docker is running
+    match Command::new("docker").arg("info").output().await {
+        Ok(output) => {
+            if !output.status.success() {
+                print_error("Docker is not running! Please start it to use Cicada");
                 std::process::exit(1);
             }
         }
         Err(_) => {
-            print_error("Docker is required to run cicada");
+            print_error("Cicada requires Docker to run. Please install it using one of the methods on https://docs.docker.com/engine/install");
+            std::process::exit(1);
+        }
+    }
+
+    match Command::new("deno").arg("-V").output().await {
+        Ok(output) => {
+            if !output.status.success() {
+                print_error("Cicada requires Deno to run. Please install it using one of the methods on https://deno.land/manual/getting_started/installation");
+                std::process::exit(1);
+            }
+
+            let output_str = String::from_utf8_lossy(&output.stdout);
+            let output_str = output_str.trim();
+            let output_str = output_str.strip_prefix("deno ").unwrap_or(output_str);
+
+            let Ok(version) = Version::parse(output_str) else {
+                print_error("Could not parse deno version");
+                return;
+            };
+
+            // Check deno version is compatible with cicada
+            if version < Version::parse("1.32.0").unwrap() {
+                if std::env::consts::OS == "macos" {
+                    print_error(format!("Cicada requires Deno version {DENO_VERSION} or above to run. Please upgrade by running {}", "brew upgrade deno".bold()));
+                } else {
+                    print_error(format!("Cicada requires Deno version {DENO_VERSION} or above to run. Please upgrade by running {}", "deno upgrade".bold()));
+                }
+
+                std::process::exit(1);
+            }
+        }
+        Err(_) => {
+            print_error("Cicada requires Deno to run. Please install it using one of the methods on https://deno.land/manual/getting_started/installation");
             std::process::exit(1);
         }
     }
@@ -206,15 +283,38 @@ pub fn resolve_pipeline(pipeline: impl AsRef<Path>) -> Result<PathBuf> {
     Err(anyhow::anyhow!("Could not find pipeline"))
 }
 
-#[derive(Parser)]
-#[command(author, version, about)]
+#[derive(Parser, Debug)]
+#[command(bin_name = "cicada", author, version, about)]
 enum Commands {
     /// Run a cicada pipeline
     Run {
         /// Path to the pipeline file
         pipeline: PathBuf,
         /// Name of the secret to use, these come from environment variables
-        secrets: Vec<String>,
+        ///
+        /// The CLI will also look for a .env file
+        #[clap(short, long)]
+        secret: Vec<String>,
+
+        /// Do not load .env file
+        #[clap(long)]
+        no_dotenv: bool,
+
+        /// Load a custom .env file
+        ///
+        /// This will override the default .env lookup
+        #[clap(long)]
+        dotenv: Option<PathBuf>,
+
+        /// Load secrets from a json file
+        ///
+        /// They should look like this:
+        /// `{
+        ///     "KEY": "VALUE",
+        ///     "KEY2": "VALUE2"
+        /// }`
+        #[clap(long)]
+        secrets_json: Option<PathBuf>,
     },
     /// Run a step in a cicada workflow
     #[command(hide = true)]
@@ -225,18 +325,27 @@ enum Commands {
     New { pipeline: String },
     /// Update cicada
     Update,
-    /// Download all dependencies needed for runtime
-    #[command(hide = true)]
-    DownloadDeps,
     /// List all available completions
     Completions { shell: clap_complete::Shell },
+    #[command(hide = true)]
+    Doctor,
 }
 
 impl Commands {
     async fn execute(self) -> anyhow::Result<()> {
         match self {
-            Commands::Run { pipeline, secrets } => {
+            Commands::Run {
+                pipeline,
+                secret,
+                no_dotenv,
+                dotenv,
+                secrets_json,
+            } => {
+                #[cfg(feature = "self-update")]
                 tokio::join!(check_for_update(), runtime_checks());
+
+                #[cfg(not(feature = "self-update"))]
+                runtime_checks().await;
 
                 eprintln!();
                 eprintln!(
@@ -261,15 +370,6 @@ impl Commands {
                 let pipeline_url = Url::from_file_path(&pipeline)
                     .map_err(|_| anyhow::anyhow!("Unable to convert pipeline path to URL"))?;
 
-                // set the cwd to the parent of the .cicada directory
-                std::env::set_current_dir(pipeline.parent().unwrap().parent().unwrap())?;
-
-                let (deno_exe, cicada_musl_exe) =
-                    tokio::try_join!(download_deno(), download_cicada_musl())?;
-
-                let deno_dir = deno_exe.parent().unwrap();
-                let cicada_musl_dir = cicada_musl_exe.parent().unwrap();
-
                 let gh_repo = github_repo().await.ok().flatten();
 
                 println!("Building pipeline: {}", pipeline.display());
@@ -278,7 +378,7 @@ impl Commands {
                     let tmp_file = tempfile::NamedTempFile::new()?;
 
                     run_deno_builder(
-                        LOCAL_CLI_SCRIPT,
+                        &LOCAL_CLI_SCRIPT,
                         vec![
                             pipeline_url.to_string().as_ref(),
                             tmp_file.path().to_str().unwrap(),
@@ -329,6 +429,49 @@ impl Commands {
                         .map(|(index, job)| (job.uuid, (index, job))),
                 );
 
+                let mut all_secrets: Vec<(String, String)> = vec![];
+
+                // Look for the secret in the environment or error
+                for secret in secret {
+                    all_secrets.push((
+                        secret.clone(),
+                        std::env::var(&secret).with_context(|| {
+                            format!("Could not find secret in environment: {secret}")
+                        })?,
+                    ));
+                }
+
+                if !no_dotenv {
+                    // Load the .env file if it exists
+                    let iter = match dotenv {
+                        Some(path) => Some(dotenvy::from_path_iter(&path).with_context(|| {
+                            format!("Could not load dotenv file: {}", path.display())
+                        })?),
+                        None => dotenvy::dotenv_iter().ok(),
+                    };
+
+                    if let Some(iter) = iter {
+                        for (key, value) in iter.flatten() {
+                            all_secrets.push((key, value));
+                        }
+                    }
+                }
+
+                // Load the secrets json file if it exists
+                if let Some(path) = secrets_json {
+                    let secrets: HashMap<String, String> =
+                        serde_json::from_str(&std::fs::read_to_string(&path).with_context(
+                            || format!("Could not load secrets json file: {}", path.display()),
+                        )?)
+                        .with_context(|| {
+                            format!("Could not parse secrets json file: {}", path.display())
+                        })?;
+
+                    for (key, value) in secrets {
+                        all_secrets.push((key, value));
+                    }
+                }
+
                 let nodes: Vec<Node> = jobs
                     .values()
                     .map(|(_, job)| Node::new(job.uuid, job.depends_on.to_vec()))
@@ -338,12 +481,11 @@ impl Commands {
                 for run_group in graph {
                     match futures::future::try_join_all(run_group.into_iter().map(|job| {
                         let (job_index, job) = jobs.remove(&job).unwrap();
-                        let secrets = secrets.clone();
+
                         let gh_repo = gh_repo.clone();
-                        let cicada_musl_dir = cicada_musl_dir.to_path_buf();
-                        let deno_dir = deno_dir.to_path_buf();
                         let pipeline_file_name = pipeline_file_name.to_os_string();
                         let project_dir = project_dir.to_path_buf();
+                        let all_secrets = all_secrets.clone();
 
                         tokio::spawn(async move {
                             let tag = format!("cicada-{}", job.image);
@@ -355,26 +497,25 @@ impl Commands {
                                 tag,
                                 "--build-context".into(),
                                 format!("local={}", project_dir.to_str().unwrap()),
-                                "--build-context".into(),
-                                format!("cicada-bin={}", cicada_musl_dir.to_str().unwrap()),
-                                "--build-context".into(),
-                                format!("deno-bin={}", deno_dir.to_str().unwrap()),
                                 "--progress".into(),
                                 "plain".into(),
                             ];
 
-                            for secret in &secrets {
-                                args.extend(["--secret".into(), format!("id={secret}")]);
+                            for (key, _) in &all_secrets {
+                                args.extend(["--secret".into(), format!("id={key}")]);
                             }
 
                             args.push("-".into());
 
-                            let mut buildx = Command::new("docker")
+                            let mut buildx_cmd = Command::new("docker");
+                            buildx_cmd
                                 .args(args)
                                 .stdin(Stdio::piped())
                                 .stdout(Stdio::piped())
                                 .stderr(Stdio::piped())
-                                .spawn()?;
+                                .envs(all_secrets);
+
+                            let mut buildx = buildx_cmd.spawn()?;
 
                             let dockerfile = job.to_dockerfile(
                                 pipeline_file_name.to_str().unwrap(),
@@ -496,12 +637,13 @@ impl Commands {
             }
             Commands::Step { workflow, step } => {
                 run_deno(
-                    RUNNER_CLI_SCRIPT,
+                    &RUNNER_CLI_SCRIPT,
                     vec![workflow.to_string(), step.to_string()],
                 )
                 .await?;
             }
             Commands::Init { pipeline } => {
+                #[cfg(feature = "self-update")]
                 check_for_update().await;
 
                 // if std::env::var("TERM_PROGRAM").as_deref() == Ok("vscode") {
@@ -549,7 +691,7 @@ impl Commands {
                     std::process::exit(1);
                 }
 
-                tokio::fs::write(&pipeline_path, include_str!("init-pipeline.ts")).await?;
+                tokio::fs::write(&pipeline_path, &*DEFAULT_PIPELINE).await?;
 
                 // Cache deno dependencies
                 if let Ok(mut out) = Command::new("deno")
@@ -573,16 +715,19 @@ impl Commands {
                 println!();
             }
             Commands::New { pipeline } => {
+                #[cfg(feature = "self-update")]
+                check_for_update().await;
+
                 // Check if cicada is initialized
-                if !PathBuf::from(".cicada").exists() {
+                let Ok(dir) = resolve_cicada_dir() else {
                     print_error(format!(
                         "Cicada is not initialized in this directory. Run {} to initialize it.",
                         "cicada init".bold()
                     ));
                     std::process::exit(1);
-                }
+                };
 
-                let pipeline_path = PathBuf::from(".cicada").join(format!("{pipeline}.ts"));
+                let pipeline_path = dir.join(format!("{pipeline}.ts"));
 
                 if pipeline_path.exists() {
                     print_error(format!(
@@ -591,6 +736,8 @@ impl Commands {
                     ));
                     std::process::exit(1);
                 }
+
+                tokio::fs::write(&pipeline_path, &*DEFAULT_PIPELINE).await?;
 
                 println!();
                 println!(
@@ -605,7 +752,7 @@ impl Commands {
                 );
                 println!();
             }
-            #[cfg(not(target_env = "musl"))]
+            #[cfg(feature = "self-update")]
             Commands::Update => {
                 use update::self_update_release;
 
@@ -627,13 +774,10 @@ impl Commands {
                     }
                 }
             }
-            #[cfg(target_env = "musl")]
+            #[cfg(not(feature = "self-update"))]
             Commands::Update => {
-                print_error("Updates are not supported on musl");
+                print_error("self update is not enabled in this build");
                 std::process::exit(1);
-            }
-            Commands::DownloadDeps => {
-                tokio::try_join!(download_deno(), download_cicada_musl())?;
             }
             Commands::Completions { shell } => {
                 use clap::CommandFactory;
@@ -644,11 +788,18 @@ impl Commands {
                     &mut std::io::stdout(),
                 );
             }
+            Commands::Doctor => {
+                println!("Checking for common problems...");
+                runtime_checks().await;
+                println!();
+                println!("All checks passed!");
+            }
         }
 
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn subcommand(&self) -> &'static str {
         match self {
             Commands::Run { .. } => "run",
@@ -656,50 +807,47 @@ impl Commands {
             Commands::Init { .. } => "init",
             Commands::New { .. } => "new",
             Commands::Update => "update",
-            Commands::DownloadDeps => "download_deps",
             Commands::Completions { .. } => "completions",
+            Commands::Doctor => "doctor",
         }
     }
 }
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    let _guard = telemetry_enabled()
-        .then_some(option_env!("SENTRY_AUTH_TOKEN"))
-        .flatten()
-        .map(|token| {
-            sentry::init((
-                token,
-                sentry::ClientOptions {
-                    release: sentry::release_name!(),
-                    ..Default::default()
-                },
-            ))
-        });
+async fn main() {
+    #[cfg(feature = "telemetry")]
+    let _sentry_guard = sentry_init();
 
     if std::env::var_os("CICADA_FORCE_COLOR").is_some() {
         owo_colors::set_override(true);
     }
 
     let command = Commands::parse();
-    let join = telemetry_enabled().then(|| {
+
+    #[cfg(feature = "telemetry")]
+    let telem_join = segment_enabled().then(|| {
         let subcommand = command.subcommand().to_owned();
-        tokio::spawn(async {
+        tokio::spawn(
             TrackEvent::SubcommandExecuted {
                 subcommand_name: subcommand,
             }
-            .post()
-            .await
-        })
+            .post(),
+        )
     });
 
     let res = command.execute().await;
 
-    if let Some(join) = join {
+    #[cfg(feature = "telemetry")]
+    if let Some(join) = telem_join {
         join.await.ok();
     }
 
-    res?;
-
-    Ok(())
+    if let Err(err) = res {
+        if std::env::var_os("CICADA_DEBUG").is_some() {
+            print_error(format!("{err:#?}"));
+        } else {
+            print_error(err);
+        }
+        std::process::exit(1);
+    }
 }

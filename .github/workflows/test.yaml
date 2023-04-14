@@ -25,6 +25,7 @@ jobs:
         run: deno lint
       - name: Check Deno Module
         run: deno check lib.ts
+
   test-rust:
     runs-on: ubuntu-latest
     steps:
@@ -36,5 +37,27 @@ jobs:
           override: true
       - name: Cargo Fmt
         run: cargo fmt -- --check
-      - name: Cargo Clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      # Default features
+      - name: Cargo Clippy Default Features
+        run: cargo clippy -- -D warnings
+      - name: Cargo Test Default Features
+        run: cargo test
+
+      # All features
+      - name: Cargo Clippy All Features
+        run: cargo clippy --all-features -- -D warnings
+      - name: Cargo Test All Features
+        run: cargo test --all-features
+
+  test-shell:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Git Checkout
+        uses: actions/checkout@v2
+      - name: Shellcheck
+        run: |
+          for file in $(find . -type f -name "*.sh"); do
+            echo "Running shellcheck on $file"
+            shellcheck "$file"
+          done

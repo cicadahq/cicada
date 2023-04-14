@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use camino::Utf8PathBuf;
 use serde::{Deserialize, Serialize};
 
-use crate::git::Github;
+use crate::{git::Github, DENO_VERSION};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -184,6 +184,8 @@ pub struct Job {
 }
 
 impl Job {
+    /// This converts the job into a dockerfile definition, the plan is to convert this into
+    /// a direct llb definition in the future
     pub fn to_dockerfile(
         &self,
         module_name: &str,
@@ -192,16 +194,17 @@ impl Job {
     ) -> String {
         let mut lines: Vec<String> = vec!["# syntax = docker/dockerfile:1.4".into()];
 
+        lines.push(format!("FROM denoland/deno:bin-{DENO_VERSION} as deno-bin"));
+        lines.push(format!(
+            "FROM cicadahq/cicada-bin:{} as cicada-bin",
+            env!("CARGO_PKG_VERSION")
+        ));
+
         lines.push(format!("FROM --platform=linux/amd64 {}", self.image));
         lines.push("ENV CI=true".into());
 
-        // Install cicada bin
-        lines.push(
-            "COPY --from=cicada-bin cicada-x86_64-unknown-linux-musl /usr/local/bin/cicada".into(),
-        );
-
-        // Install deno bin
-        lines.push("COPY --from=deno-bin deno-x86_64-unknown-linux-gnu /usr/local/bin/deno".into());
+        lines.push("COPY --from=cicada-bin /cicada /usr/local/bin/cicada".into());
+        lines.push("COPY --from=deno-bin /deno /usr/local/bin/deno".into());
 
         // Make working directory
         let working_directory = self
