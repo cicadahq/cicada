@@ -66,11 +66,11 @@ const COLORS: [owo_colors::colored::Color; 6] = [
     owo_colors::colored::Color::Yellow,
 ];
 
-fn print_error(s: impl std::fmt::Display) {
-    eprintln!(
-        "{}: {s}",
-        "Error".if_supports_color(atty::Stream::Stderr, |c| c.red()),
-    );
+macro_rules! print_error {
+    ($($arg:tt)*) => {
+        eprint!("{}: ", "Error".if_supports_color(atty::Stream::Stderr, |c| c.red()));
+        eprintln!($( $arg )*);
+    }
 }
 
 async fn run_deno<I, S>(script: &str, args: I) -> Result<()>
@@ -157,7 +157,7 @@ async fn runtime_checks() {
         Command::new("docker")
             .args(["info", "--format", "{{json .}}"])
             .output(),
-        Command::new("deno").args(["--version"]).output(),
+        Command::new("deno").args(["-V"]).output(),
     );
 
     // Validate docker client version is at least 23
@@ -206,12 +206,12 @@ async fn runtime_checks() {
     match docker_info {
         Ok(output) => {
             if !output.status.success() {
-                print_error("Docker is not running! Please start it to use Cicada");
+                print_error!("Docker is not running! Please start it to use Cicada");
                 std::process::exit(1);
             }
         }
         Err(_) => {
-            print_error("Cicada requires Docker to run. Please install it using one of the methods on https://docs.docker.com/engine/install");
+            print_error!("Cicada requires Docker to run. Please install it using one of the methods on https://docs.docker.com/engine/install");
             std::process::exit(1);
         }
     }
@@ -219,7 +219,7 @@ async fn runtime_checks() {
     match deno_version {
         Ok(output) => {
             if !output.status.success() {
-                print_error("Cicada requires Deno to run. Please install it using one of the methods on https://deno.land/manual/getting_started/installation");
+                print_error!("Cicada requires Deno to run. Please install it using one of the methods on https://deno.land/manual/getting_started/installation");
                 std::process::exit(1);
             }
 
@@ -228,23 +228,23 @@ async fn runtime_checks() {
             let output_str = output_str.strip_prefix("deno ").unwrap_or(output_str);
 
             let Ok(version) = Version::parse(output_str) else {
-                print_error("Could not parse deno version");
+                print_error!("Could not parse deno version");
                 return;
             };
 
             // Check deno version is compatible with cicada
             if version < Version::parse("1.32.0").unwrap() {
                 if std::env::consts::OS == "macos" {
-                    print_error(format!("Cicada requires Deno version {DENO_VERSION} or above to run. Please upgrade by running {}", "brew upgrade deno".bold()));
+                    print_error!("Cicada requires Deno version {DENO_VERSION} or above to run. Please upgrade by running {}", "brew upgrade deno".bold());
                 } else {
-                    print_error(format!("Cicada requires Deno version {DENO_VERSION} or above to run. Please upgrade by running {}", "deno upgrade".bold()));
+                    print_error!("Cicada requires Deno version {DENO_VERSION} or above to run. Please upgrade by running {}", "deno upgrade".bold());
                 }
 
                 std::process::exit(1);
             }
         }
         Err(_) => {
-            print_error("Cicada requires Deno to run. Please install it using one of the methods on https://deno.land/manual/getting_started/installation");
+            print_error!("Cicada requires Deno to run. Please install it using one of the methods on https://deno.land/manual/getting_started/installation");
             std::process::exit(1);
         }
     }
@@ -319,6 +319,12 @@ enum Commands {
         /// }`
         #[clap(long)]
         secrets_json: Option<PathBuf>,
+
+        /// A custom dockerfile to load the cicada bin from
+        ///
+        /// In the dev reop this is `./docker/bin.Dockerfile`
+        #[clap(long, hide = true)]
+        cicada_dockerfile: Option<PathBuf>,
     },
     /// Run a step in a cicada workflow
     #[command(hide = true)]
@@ -344,6 +350,7 @@ impl Commands {
                 no_dotenv,
                 dotenv,
                 secrets_json,
+                cicada_dockerfile,
             } => {
                 #[cfg(feature = "self-update")]
                 tokio::join!(check_for_update(), runtime_checks());
@@ -368,6 +375,39 @@ impl Commands {
                 );
                 eprintln!();
 
+                let cicada_bin_tag = if let Some(cicada_dockerfile) = cicada_dockerfile {
+                    let tag = format!("cicada-bin:{}", env!("CARGO_PKG_VERSION"));
+
+                    eprintln!("Building cicada bootstrap image...");
+                    eprintln!();
+
+                    let status = Command::new("docker")
+                        .arg("build")
+                        .arg("-t")
+                        .arg(&tag)
+                        .arg("-f")
+                        .arg(cicada_dockerfile)
+                        .arg(".")
+                        .spawn()?
+                        .wait()
+                        .await
+                        .map_err(|err| anyhow::anyhow!("Unable to run docker build: {err}"))?;
+
+                    if !status.success() {
+                        anyhow::bail!(
+                            "Unable to build cicada bootstrap image, please check the docker build output"
+                        );
+                    }
+
+                    eprintln!();
+                    eprintln!("Built cicada bootstrap image: {}", tag.bold());
+                    eprintln!();
+
+                    Some(tag)
+                } else {
+                    None
+                };
+
                 let pipeline = resolve_pipeline(pipeline)?;
                 let pipeline_file_name = pipeline.file_name().unwrap();
                 let project_dir = pipeline.parent().unwrap().parent().unwrap();
@@ -376,7 +416,7 @@ impl Commands {
 
                 let gh_repo = github_repo().await.ok().flatten();
 
-                println!("Building pipeline: {}", pipeline.display());
+                println!("Building pipeline: {}", pipeline.display().bold());
 
                 let out = {
                     let tmp_file = tempfile::NamedTempFile::new()?;
@@ -497,6 +537,7 @@ impl Commands {
                         let pipeline_file_name = pipeline_file_name.to_os_string();
                         let project_dir = project_dir.to_path_buf();
                         let all_secrets = all_secrets.clone();
+                        let cicada_bin_tag = cicada_bin_tag.clone();
 
                         tokio::spawn(async move {
                             let tag = format!("cicada-{}", job.image);
@@ -511,6 +552,13 @@ impl Commands {
                                 "--progress".into(),
                                 "plain".into(),
                             ];
+
+                            if let Some(cicada_bin_tag) = &cicada_bin_tag {
+                                args.extend([
+                                    "--build-context".into(),
+                                    format!("cicada-bin=docker-image://{cicada_bin_tag}"),
+                                ]);
+                            }
 
                             for (key, _) in &all_secrets {
                                 args.extend(["--secret".into(), format!("id={key}")]);
@@ -532,6 +580,7 @@ impl Commands {
                                 pipeline_file_name.to_str().unwrap(),
                                 &gh_repo,
                                 job_index,
+                                cicada_bin_tag.is_some(),
                             );
 
                             buildx
@@ -542,8 +591,7 @@ impl Commands {
                                 .await?;
                             buildx.stdin.take().unwrap().shutdown().await?;
 
-                            let display_name =
-                                job.name.clone().unwrap_or_else(|| job.image.clone());
+                            let display_name = job.display_name(job_index);
 
                             // Print the output as it comes in
                             let stdout = buildx.stdout.take().unwrap();
@@ -558,7 +606,7 @@ impl Commands {
                                     let mut line = String::new();
                                     loop {
                                         if let Err(err) = buf_reader.read_line(&mut line).await {
-                                            print_error(err);
+                                            print_error!("{err}");
                                             return;
                                         }
                                         if line.is_empty() {
@@ -583,7 +631,7 @@ impl Commands {
                                     let mut line = String::new();
                                     loop {
                                         if let Err(err) = buf_reader.read_line(&mut line).await {
-                                            print_error(err);
+                                            print_error!("{err}");
                                             return;
                                         }
                                         if line.is_empty() {
@@ -600,18 +648,20 @@ impl Commands {
                                 }
                             });
 
+                            let long_name = job.long_name(job_index);
+
                             stdout_handle.await.with_context(|| {
-                                format!("Failed to read stdout for {display_name}")
+                                format!("Failed to read stdout for {long_name}")
                             })?;
                             stderr_handle.await.with_context(|| {
-                                format!("Failed to read stderr for {display_name}")
+                                format!("Failed to read stderr for {long_name}")
                             })?;
 
                             let status = buildx.wait().await.with_context(|| {
-                                format!("Failed to wait for {display_name} to finish")
+                                format!("Failed to wait for {long_name} to finish")
                             })?;
 
-                            anyhow::Ok((display_name, status, job))
+                            anyhow::Ok((long_name, status, job))
                         })
                     }))
                     .await
@@ -619,24 +669,22 @@ impl Commands {
                         Ok(results) => {
                             for result in results {
                                 match result {
-                                    Ok((display_name, exit_status, job)) => match job.on_fail {
+                                    Ok((long_name, exit_status, job)) => match job.on_fail {
                                         Some(OnFail::Ignore) if !exit_status.success() => {
-                                            println!("{display_name} failed with status {exit_status} but was ignored");
+                                            println!("{long_name} failed with status {exit_status} but was ignored");
                                         }
                                         Some(OnFail::Stop) | None if !exit_status.success() => {
-                                            print_error(format!(
-                                                    "Docker build failed for \"{display_name}\" with status {exit_status}",
-                                                ));
+                                            print_error!("Docker build failed for {long_name} with status {exit_status}");
                                             std::process::exit(1);
                                         }
                                         _ => {
                                             println!(
-                                                "{display_name} finished with status {exit_status}"
+                                                "{long_name} finished with status {exit_status}"
                                             );
                                         }
                                     },
                                     Err(err) => {
-                                        print_error(err);
+                                        print_error!("{err}");
                                         std::process::exit(1);
                                     }
                                 }
@@ -695,10 +743,7 @@ impl Commands {
                 let pipeline_path = cicada_dir.join(format!("{pipeline_name}.ts"));
 
                 if pipeline_path.exists() {
-                    print_error(format!(
-                        "Pipeline already exists: {}",
-                        pipeline_path.display()
-                    ));
+                    print_error!("Pipeline already exists: {}", pipeline_path.display());
                     std::process::exit(1);
                 }
 
@@ -731,20 +776,17 @@ impl Commands {
 
                 // Check if cicada is initialized
                 let Ok(dir) = resolve_cicada_dir() else {
-                    print_error(format!(
+                    print_error!(
                         "Cicada is not initialized in this directory. Run {} to initialize it.",
                         "cicada init".bold()
-                    ));
+                    );
                     std::process::exit(1);
                 };
 
                 let pipeline_path = dir.join(format!("{pipeline}.ts"));
 
                 if pipeline_path.exists() {
-                    print_error(format!(
-                        "Pipeline already exists: {}",
-                        pipeline_path.display()
-                    ));
+                    print_error!("Pipeline already exists: {}", pipeline_path.display());
                     std::process::exit(1);
                 }
 
@@ -787,7 +829,7 @@ impl Commands {
             }
             #[cfg(not(feature = "self-update"))]
             Commands::Update => {
-                print_error("self update is not enabled in this build");
+                print_error!("self update is not enabled in this build");
                 std::process::exit(1);
             }
             Commands::Completions { shell } => {
@@ -855,9 +897,9 @@ async fn main() {
 
     if let Err(err) = res {
         if std::env::var_os("CICADA_DEBUG").is_some() {
-            print_error(format!("{err:#?}"));
+            print_error!("{err:#?}");
         } else {
-            print_error(err);
+            print_error!("{err}");
         }
         std::process::exit(1);
     }
