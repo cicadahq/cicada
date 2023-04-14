@@ -189,16 +189,12 @@ export interface PipelineOptions {
  * Represents a pipeline containing an array of jobs.
  */
 export class Pipeline {
-  public jobs: Job[];
-
   /**
    * Creates a new Pipeline instance.
    * @param jobs - An array of jobs to include in the pipeline.
    * @param options - The options for the pipeline.
    */
-  constructor(jobs: [Job, ...Job[]], public options?: PipelineOptions) {
-    this.jobs = jobs.flat();
-  }
+  constructor(public jobs: Job[], public options?: PipelineOptions) {}
 }
 
 export class Secret {

@@ -191,14 +191,17 @@ impl Job {
         module_name: &str,
         github: &Option<Github>,
         job_index: usize,
+        bootstrap: bool,
     ) -> String {
         let mut lines: Vec<String> = vec!["# syntax = docker/dockerfile:1.4".into()];
 
         lines.push(format!("FROM denoland/deno:bin-{DENO_VERSION} as deno-bin"));
-        lines.push(format!(
-            "FROM --platform=linux/amd64 cicadahq/cicada-bin:{} as cicada-bin",
-            env!("CARGO_PKG_VERSION")
-        ));
+        if !bootstrap {
+            lines.push(format!(
+                "FROM --platform=linux/amd64 cicadahq/cicada-bin:{} as cicada-bin",
+                env!("CARGO_PKG_VERSION")
+            ));
+        }
 
         lines.push(format!("FROM --platform=linux/amd64 {}", self.image));
         lines.push("ENV CI=true".into());
@@ -243,6 +246,20 @@ impl Job {
         }
 
         lines.join("\n")
+    }
+
+    pub fn display_name(&self, index: usize) -> String {
+        self.name
+            .clone()
+            .unwrap_or_else(|| format!("{}-{index}", self.image))
+    }
+
+    pub fn long_name(&self, index: usize) -> String {
+        let image = &self.image;
+        match &self.name {
+            Some(name) => format!("{name} ({image}-{index})"),
+            None => format!("{image}-{index}"),
+        }
     }
 }
 
