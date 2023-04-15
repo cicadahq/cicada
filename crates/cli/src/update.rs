@@ -1,3 +1,4 @@
+use owo_colors::Stream;
 use self_update::update::ReleaseUpdate;
 use tracing::info;
 
@@ -17,10 +18,10 @@ pub async fn check_for_update() {
         info!(
             "\n{}{}\n{}{}\n",
             "A new version of Cicada is available: "
-                .if_supports_color(atty::Stream::Stdout, |s| s.yellow()),
-            version.if_supports_color(atty::Stream::Stdout, |s| s.style(bold_yellow)),
-            "Run to update: ".if_supports_color(atty::Stream::Stdout, |s| s.yellow()),
-            "cicada update".if_supports_color(atty::Stream::Stdout, |s| s.style(bold_yellow))
+                .if_supports_color(Stream::Stdout, |s| s.yellow()),
+            version.if_supports_color(Stream::Stdout, |s| s.style(bold_yellow)),
+            "Run to update: ".if_supports_color(Stream::Stdout, |s| s.yellow()),
+            "cicada update".if_supports_color(Stream::Stdout, |s| s.style(bold_yellow))
         );
     };
 

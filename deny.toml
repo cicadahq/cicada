@@ -36,9 +36,8 @@ multiple-versions = "warn"
 wildcards = "allow"
 highlight = "all"
 
-# want to ban, self_update requires it
-# [[bans.deny]]
-# name = "openssl"
+[[bans.deny]]
+name = "openssl"
 
 # this is mistaken for tempfile sometimes
 [[bans.deny]]

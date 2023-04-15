@@ -7,7 +7,7 @@ use std::{
 
 use ahash::HashMap;
 use anyhow::Result;
-use owo_colors::{OwoColorize, Style};
+use owo_colors::{colored::Color, OwoColorize, Stream, Style};
 use tracing::{field::Visit, Event, Level, Subscriber};
 use tracing_core::Field;
 use tracing_subscriber::{
@@ -15,13 +15,13 @@ use tracing_subscriber::{
     registry::LookupSpan, util::SubscriberInitExt, Layer,
 };
 
-const COLORS: [owo_colors::colored::Color; 6] = [
-    owo_colors::colored::Color::Blue,
-    owo_colors::colored::Color::Green,
-    owo_colors::colored::Color::Red,
-    owo_colors::colored::Color::Magenta,
-    owo_colors::colored::Color::Cyan,
-    owo_colors::colored::Color::Yellow,
+const COLORS: [Color; 6] = [
+    Color::Blue,
+    Color::Green,
+    Color::Red,
+    Color::Magenta,
+    Color::Cyan,
+    Color::Yellow,
 ];
 
 #[derive(Debug, Default)]
@@ -32,7 +32,7 @@ struct EventVisitor {
 impl Visit for EventVisitor {
     fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
         match field.name() == "message" {
-            true => write!(&mut self.output, "{:?}", value).ok(),
+            true => write!(&mut self.output, "{value:?}").ok(),
             false => write!(&mut self.output, "  {}={:?}", field.name(), value).ok(),
         };
     }
@@ -95,7 +95,7 @@ impl<S: Subscriber + for<'a> LookupSpan<'a>> Layer<S> for CustomFormatLayer {
                 write!(
                     stdout,
                     "{}: ",
-                    job_name.if_supports_color(atty::Stream::Stdout, |s| s.color(color))
+                    job_name.if_supports_color(Stream::Stdout, |s| s.color(color))
                 )
                 .ok();
             };
@@ -107,7 +107,7 @@ impl<S: Subscriber + for<'a> LookupSpan<'a>> Layer<S> for CustomFormatLayer {
                 write!(
                     stdout,
                     "{} ",
-                    "[error]".if_supports_color(atty::Stream::Stdout, |s| { s.style(style) })
+                    "[error]".if_supports_color(Stream::Stdout, |s| { s.style(style) })
                 )
                 .ok();
             }
@@ -116,7 +116,7 @@ impl<S: Subscriber + for<'a> LookupSpan<'a>> Layer<S> for CustomFormatLayer {
                 write!(
                     stdout,
                     "{} ",
-                    "[warn]".if_supports_color(atty::Stream::Stdout, |s| { s.style(style) })
+                    "[warn]".if_supports_color(Stream::Stdout, |s| { s.style(style) })
                 )
                 .ok();
             }

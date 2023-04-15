@@ -23,7 +23,7 @@ jobs:
           - target: x86_64-unknown-linux-gnu
             archive: tar.gz tar.zst
             os: ubuntu-latest
-            features: telemetry,self-update
+            features: telemetry,self-update,managed-deno
           - target: x86_64-unknown-linux-musl
             archive: tar.gz tar.zst
             os: ubuntu-latest
@@ -31,15 +31,15 @@ jobs:
           - target: x86_64-apple-darwin
             archive: tar.gz
             os: macos-latest
-            features: telemetry,self-update
+            features: telemetry,self-update,managed-deno
           - target: aarch64-apple-darwin
             archive: tar.gz
             os: macos-latest
-            features: telemetry,self-update
+            features: telemetry,self-update,managed-deno
           - target: x86_64-pc-windows-msvc
             archive: tar.gz
             os: windows-latest
-            features: telemetry,self-update
+            features: telemetry,self-update,managed-deno
 
     steps:
       - uses: actions/checkout@master

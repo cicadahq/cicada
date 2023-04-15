@@ -1,4 +1,5 @@
 mod dag;
+mod deno;
 mod git;
 mod job;
 mod logging;
@@ -12,7 +13,6 @@ use anyhow::{bail, Context, Result};
 use clap_complete::generate;
 use logging::logging_init;
 use once_cell::sync::Lazy;
-use semver::Version;
 use std::{
     ffi::OsStr,
     path::{Path, PathBuf},
@@ -27,7 +27,7 @@ use url::Url;
 
 use ahash::HashMap;
 use clap::Parser;
-use owo_colors::OwoColorize;
+use owo_colors::{OwoColorize, Stream};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     process::Command,
@@ -35,11 +35,10 @@ use tokio::{
 
 use crate::{
     dag::{invert_graph, topological_sort, Node},
+    deno::deno_exe,
     git::github_repo,
     job::{OnFail, Pipeline},
 };
-
-const DENO_VERSION: &str = "1.32.3";
 
 // Transform from https://deno.land/x/cicada/lib.ts to https://deno.land/x/cicada@vX.Y.X/lib.ts
 static DENO_LAND_REGEX: Lazy<regex::Regex> =
@@ -90,6 +89,7 @@ where
 }
 
 async fn run_deno_builder<A, S>(
+    deno_exe: &Path,
     script: &str,
     args: A,
     proj_path: &Path,
@@ -99,7 +99,7 @@ where
     A: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
 {
-    let mut child = Command::new("deno")
+    let mut child = Command::new(deno_exe)
         .arg("run")
         .arg(format!("--allow-read={}", proj_path.display()))
         .arg(format!("--allow-write={}", out_path.display()))
@@ -139,12 +139,11 @@ async fn runtime_checks() {
         return;
     }
 
-    let (docker_buildx_version, docker_info, deno_version) = tokio::join!(
+    let (docker_buildx_version, docker_info) = tokio::join!(
         Command::new("docker").args(["buildx", "version"]).output(),
         Command::new("docker")
             .args(["info", "--format", "{{json .}}"])
             .output(),
-        Command::new("deno").args(["-V"]).output(),
     );
 
     // Validate docker client version is at least 23
@@ -199,39 +198,6 @@ async fn runtime_checks() {
         }
         Err(_) => {
             error!("Cicada requires Docker to run. Please install it using one of the methods on https://docs.docker.com/engine/install");
-            std::process::exit(1);
-        }
-    }
-
-    match deno_version {
-        Ok(output) => {
-            if !output.status.success() {
-                error!("Cicada requires Deno to run. Please install it using one of the methods on https://deno.land/manual/getting_started/installation");
-                std::process::exit(1);
-            }
-
-            let output_str = String::from_utf8_lossy(&output.stdout);
-            let output_str = output_str.trim();
-            let output_str = output_str.strip_prefix("deno ").unwrap_or(output_str);
-
-            let Ok(version) = Version::parse(output_str) else {
-                error!("Could not parse deno version");
-                return;
-            };
-
-            // Check deno version is compatible with cicada
-            if version < Version::parse("1.32.0").unwrap() {
-                if std::env::consts::OS == "macos" {
-                    error!("Cicada requires Deno version {DENO_VERSION} or above to run. Please upgrade by running {}", "brew upgrade deno".bold());
-                } else {
-                    error!("Cicada requires Deno version {DENO_VERSION} or above to run. Please upgrade by running {}", "deno upgrade".bold());
-                }
-
-                std::process::exit(1);
-            }
-        }
-        Err(_) => {
-            error!("Cicada requires Deno to run. Please install it using one of the methods on https://deno.land/manual/getting_started/installation");
             std::process::exit(1);
         }
     }
@@ -347,15 +313,15 @@ impl Commands {
 
                 info!(
                     "\n{}{}\n{}{}\n",
-                    " ◥◣ ▲ ◢◤ "
-                        .if_supports_color(atty::Stream::Stderr, |s| s.fg_rgb::<145, 209, 249>()),
+                    " ◥◣ ▲ ◢◤ ".if_supports_color(Stream::Stderr, |s| s.fg_rgb::<145, 209, 249>()),
                     " Cicada is in alpha, it may not work as expected"
-                        .if_supports_color(atty::Stream::Stderr, |s| s.bold()),
-                    "  ◸ ▽ ◹  "
-                        .if_supports_color(atty::Stream::Stderr, |s| s.fg_rgb::<145, 209, 249>()),
+                        .if_supports_color(Stream::Stderr, |s| s.bold()),
+                    "  ◸ ▽ ◹  ".if_supports_color(Stream::Stderr, |s| s.fg_rgb::<145, 209, 249>()),
                     " Please report any issues here: http://github.com/cicadahq/cicada"
-                        .if_supports_color(atty::Stream::Stderr, |s| s.bold())
+                        .if_supports_color(Stream::Stderr, |s| s.bold())
                 );
+
+                let deno_exe = deno_exe().await?;
 
                 let cicada_bin_tag = if let Some(cicada_dockerfile) = cicada_dockerfile {
                     let tag = format!("cicada-bin:{}", env!("CARGO_PKG_VERSION"));
@@ -401,6 +367,7 @@ impl Commands {
                     let tmp_file = tempfile::NamedTempFile::new()?;
 
                     run_deno_builder(
+                        &deno_exe,
                         &LOCAL_CLI_SCRIPT,
                         vec![
                             pipeline_url.to_string().as_ref(),
@@ -425,7 +392,7 @@ impl Commands {
                     match pipeline.on {
                         Some(job::Trigger::Options { push, pull_request }) => match &*git_event {
                             "pull_request" if !pull_request.contains(&base_ref) => {
-                                println!(
+                                info!(
                                     "Skipping pipeline because branch {} is not in {}: {:?}",
                                     base_ref.bold(),
                                     "pull_request".bold(),
@@ -434,7 +401,7 @@ impl Commands {
                                 std::process::exit(2);
                             }
                             "push" if !push.contains(&base_ref) => {
-                                println!(
+                                info!(
                                     "Skipping pipeline because branch {} is not in {}: {:?}",
                                     base_ref.bold(),
                                     "push".bold(),
@@ -725,7 +692,7 @@ impl Commands {
                     std::fs::create_dir(&cicada_dir)?;
                 }
 
-                let pipeline_name = pipeline.as_deref().unwrap_or("my-pipeline");
+                let pipeline_name = pipeline.as_deref().unwrap_or("pipeline");
 
                 let pipeline_path = cicada_dir.join(format!("{pipeline_name}.ts"));
 
