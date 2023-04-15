@@ -583,24 +583,30 @@ impl Commands {
                                     .as_mut()
                                     .unwrap()
                                     .write_all(dockerfile.as_bytes())
+                                    .in_current_span()
                                     .await?;
-                                buildx.stdin.take().unwrap().shutdown().await?;
-
-                                let display_name = job.display_name(job_index);
+                                buildx
+                                    .stdin
+                                    .take()
+                                    .unwrap()
+                                    .shutdown()
+                                    .in_current_span()
+                                    .await?;
 
                                 // Print the output as it comes in
                                 let stdout = buildx.stdout.take().unwrap();
                                 let stderr = buildx.stderr.take().unwrap();
 
                                 // TODO: Make this into a function that takes a stream, a color, and a display name
-                                let stdout_handle = tokio::spawn({
-                                    let display_name = display_name.clone();
-
+                                let stdout_handle = tokio::spawn(
                                     async move {
                                         let mut buf_reader = BufReader::new(stdout);
                                         let mut line = String::new();
                                         loop {
-                                            if let Err(err) = buf_reader.read_line(&mut line).await
+                                            if let Err(err) = buf_reader
+                                                .read_line(&mut line)
+                                                .in_current_span()
+                                                .await
                                             {
                                                 error!("{err}");
                                                 return;
@@ -608,25 +614,22 @@ impl Commands {
                                             if line.is_empty() {
                                                 return;
                                             }
-                                            print!(
-                                                "{}: {line}",
-                                                display_name
-                                                    .if_supports_color(atty::Stream::Stdout, |s| s
-                                                        .color(COLORS[job_index % COLORS.len()])),
-                                            );
+                                            info!("{}", line.trim_end(),);
                                             line.clear();
                                         }
                                     }
-                                });
+                                    .in_current_span(),
+                                );
 
-                                let stderr_handle = tokio::spawn({
-                                    let display_name = display_name.clone();
-
+                                let stderr_handle = tokio::spawn(
                                     async move {
                                         let mut buf_reader = BufReader::new(stderr);
                                         let mut line = String::new();
                                         loop {
-                                            if let Err(err) = buf_reader.read_line(&mut line).await
+                                            if let Err(err) = buf_reader
+                                                .read_line(&mut line)
+                                                .in_current_span()
+                                                .await
                                             {
                                                 error!("{err}");
                                                 return;
@@ -634,16 +637,13 @@ impl Commands {
                                             if line.is_empty() {
                                                 return;
                                             }
-                                            print!(
-                                                "{}: {line}",
-                                                display_name
-                                                    .if_supports_color(atty::Stream::Stderr, |s| s
-                                                        .color(COLORS[job_index % COLORS.len()])),
-                                            );
+
+                                            info!("{}", line.trim_end(),);
                                             line.clear();
                                         }
                                     }
-                                });
+                                    .in_current_span(),
+                                );
 
                                 let long_name = job.long_name(job_index);
 
@@ -654,9 +654,10 @@ impl Commands {
                                     format!("Failed to read stderr for {long_name}")
                                 })?;
 
-                                let status = buildx.wait().await.with_context(|| {
-                                    format!("Failed to wait for {long_name} to finish")
-                                })?;
+                                let status =
+                                    buildx.wait().in_current_span().await.with_context(|| {
+                                        format!("Failed to wait for {long_name} to finish")
+                                    })?;
 
                                 anyhow::Ok((long_name, status, job))
                             }
