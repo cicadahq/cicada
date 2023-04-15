@@ -1,4 +1,5 @@
 use self_update::update::ReleaseUpdate;
+use tracing::info;
 
 #[cfg(target_env = "musl")]
 compile_error!("Musl does not support self-update");
@@ -13,19 +14,14 @@ pub async fn check_for_update() {
 
     let print_update_msg = |version: &str| {
         let bold_yellow = owo_colors::Style::new().bold().yellow();
-        eprintln!();
-        eprintln!(
-            "{}{}",
+        info!(
+            "\n{}{}\n{}{}\n",
             "A new version of Cicada is available: "
                 .if_supports_color(atty::Stream::Stdout, |s| s.yellow()),
-            version.if_supports_color(atty::Stream::Stdout, |s| s.style(bold_yellow))
-        );
-        eprintln!(
-            "{}{}",
+            version.if_supports_color(atty::Stream::Stdout, |s| s.style(bold_yellow)),
             "Run to update: ".if_supports_color(atty::Stream::Stdout, |s| s.yellow()),
             "cicada update".if_supports_color(atty::Stream::Stdout, |s| s.style(bold_yellow))
         );
-        eprintln!();
     };
 
     let Ok(data_path) = data_path() else {
