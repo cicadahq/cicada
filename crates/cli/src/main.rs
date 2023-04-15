@@ -60,15 +60,6 @@ static RUNNER_CLI_SCRIPT: Lazy<String> =
 static DEFAULT_PIPELINE: Lazy<String> =
     Lazy::new(|| replace_with_version(include_str!("../scripts/default-pipeline.ts")));
 
-const COLORS: [owo_colors::colored::Color; 6] = [
-    owo_colors::colored::Color::Blue,
-    owo_colors::colored::Color::Green,
-    owo_colors::colored::Color::Red,
-    owo_colors::colored::Color::Magenta,
-    owo_colors::colored::Color::Cyan,
-    owo_colors::colored::Color::Yellow,
-];
-
 async fn run_deno<I, S>(script: &str, args: I) -> Result<()>
 where
     I: IntoIterator<Item = S>,
@@ -521,10 +512,7 @@ impl Commands {
                     match futures::future::try_join_all(run_group.into_iter().map(|job| {
                         let (job_index, job) = jobs.remove(&job).unwrap();
 
-                        let span = match job.name.as_deref() {
-                            Some(job_name) => info_span!("job", job_name),
-                            None => info_span!("job"),
-                        };
+                        let span = info_span!("job", job_name = job.display_name(job_index));
                         let _enter = span.enter();
 
                         let gh_repo = gh_repo.clone();
@@ -585,6 +573,7 @@ impl Commands {
                                     .write_all(dockerfile.as_bytes())
                                     .in_current_span()
                                     .await?;
+
                                 buildx
                                     .stdin
                                     .take()
@@ -614,7 +603,7 @@ impl Commands {
                                             if line.is_empty() {
                                                 return;
                                             }
-                                            info!("{}", line.trim_end(),);
+                                            info!("{line}");
                                             line.clear();
                                         }
                                     }
@@ -638,7 +627,7 @@ impl Commands {
                                                 return;
                                             }
 
-                                            info!("{}", line.trim_end(),);
+                                            info!("{line}");
                                             line.clear();
                                         }
                                     }

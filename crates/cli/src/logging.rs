@@ -1,17 +1,28 @@
 use std::{
     collections::hash_map::DefaultHasher,
-    fmt::Write,
+    fmt::Write as _,
     hash::{Hash, Hasher},
+    io::Write as _,
 };
 
 use ahash::HashMap;
 use anyhow::Result;
+use owo_colors::{OwoColorize, Style};
 use tracing::{field::Visit, Event, Level, Subscriber};
 use tracing_core::Field;
 use tracing_subscriber::{
     fmt::SubscriberBuilder, layer::Context, prelude::__tracing_subscriber_SubscriberExt,
     registry::LookupSpan, util::SubscriberInitExt, Layer,
 };
+
+const COLORS: [owo_colors::colored::Color; 6] = [
+    owo_colors::colored::Color::Blue,
+    owo_colors::colored::Color::Green,
+    owo_colors::colored::Color::Red,
+    owo_colors::colored::Color::Magenta,
+    owo_colors::colored::Color::Cyan,
+    owo_colors::colored::Color::Yellow,
+];
 
 #[derive(Debug, Default)]
 struct EventVisitor {
@@ -21,8 +32,8 @@ struct EventVisitor {
 impl Visit for EventVisitor {
     fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
         match field.name() == "message" {
-            true => writeln!(&mut self.output, "{:?}", value).ok(),
-            false => writeln!(&mut self.output, "  {}={:?}", field.name(), value).ok(),
+            true => write!(&mut self.output, "{:?}", value).ok(),
+            false => write!(&mut self.output, "  {}={:?}", field.name(), value).ok(),
         };
     }
 }
@@ -67,6 +78,8 @@ impl<S: Subscriber + for<'a> LookupSpan<'a>> Layer<S> for CustomFormatLayer {
             return;
         }
 
+        let mut stdout = std::io::stdout().lock();
+
         if let Some(current_span) = ctx.current_span().id() {
             let span = ctx.span(current_span).unwrap();
             if let Some(visitor) = span.extensions().get::<SpanVisitor>() {
@@ -78,20 +91,41 @@ impl<S: Subscriber + for<'a> LookupSpan<'a>> Layer<S> for CustomFormatLayer {
                 let mut hasher = DefaultHasher::new();
                 job_name.hash(&mut hasher);
                 let hash = hasher.finish();
-                let color = (hash % 5) + 32 + (hash % 2) * 60;
-                print!("\x1b[{color}m{job_name}\x1b[0m: ");
+                let color = COLORS[(hash % COLORS.len() as u64) as usize];
+                write!(
+                    stdout,
+                    "{}: ",
+                    job_name.if_supports_color(atty::Stream::Stdout, |s| s.color(color))
+                )
+                .ok();
             };
         }
 
         match log_level {
-            Level::ERROR => print!("\x1b[31m[error]\x1b[0m "),
-            Level::WARN => print!("\x1b[33m[warn]\x1b[0m "),
-            _ => (),
+            Level::ERROR => {
+                let style = Style::new().bold().red();
+                write!(
+                    stdout,
+                    "{} ",
+                    "[error]".if_supports_color(atty::Stream::Stdout, |s| { s.style(style) })
+                )
+                .ok();
+            }
+            Level::WARN => {
+                let style = Style::new().bold().yellow();
+                write!(
+                    stdout,
+                    "{} ",
+                    "[warn]".if_supports_color(atty::Stream::Stdout, |s| { s.style(style) })
+                )
+                .ok();
+            }
+            _ => {}
         }
 
         let mut visitor = EventVisitor::default();
         event.record(&mut visitor);
-        print!("{}", visitor.output);
+        writeln!(stdout, "{}", visitor.output.trim_end_matches('\n')).ok();
     }
 }
 
