@@ -64,7 +64,7 @@ pub async fn download_deno_exe() -> anyhow::Result<PathBuf> {
     }
     std::fs::create_dir_all(&managed_deno_dir)?;
 
-    let deno_download_link = deno_download_link();
+    let deno_download_link = deno_download_link()?;
 
     let mut tempfile = tokio::fs::File::from_std(tempfile::tempfile()?);
 
