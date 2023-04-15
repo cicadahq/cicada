@@ -31,18 +31,18 @@ fn managed_deno_exe() -> anyhow::Result<PathBuf> {
 }
 
 #[cfg(feature = "managed-deno")]
-fn deno_download_link() -> String {
+fn deno_download_link() -> anyhow::Result<String> {
     let deno_archive_name = match (std::env::consts::OS, std::env::consts::ARCH) {
         ("linux", "x86_64") => "deno-x86_64-unknown-linux-gnu",
         ("macos", "x86_64") => "deno-x86_64-apple-darwin",
         ("macos", "aarch64") => "deno-aarch64-apple-darwin",
         ("windows", "x86_64") => "deno-x86_64-pc-windows-msvc.zip",
-        _ => panic!("Unsupported platform"),
+        _ => anyhow::bail!("Unsupported platform"),
     };
 
-    format!(
+    Ok(format!(
         "https://github.com/denoland/deno/releases/download/v{DENO_VERSION}/{deno_archive_name}.zip"
-    )
+    ))
 }
 
 #[cfg(feature = "managed-deno")]
