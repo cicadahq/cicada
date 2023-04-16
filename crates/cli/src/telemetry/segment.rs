@@ -42,14 +42,31 @@ impl TrackEvent {
             .to_owned()
             .context("failed to acquire user id")?;
 
-        let (event, properties) = match self {
+        let (event, mut properties) = match self {
             TrackEvent::SubcommandExecuted { subcommand_name } => (
                 "subcommand_executed".into(),
                 [("subcommand_name".to_owned(), Value::String(subcommand_name))]
                     .into_iter()
-                    .collect(),
+                    .collect::<Map<String, Value>>(),
             ),
         };
+
+        // Insert the default properties (os, architecture, environment, cli_version)
+        //
+        // Want to make sure the telemetry is useful but not too identifying basically
+        // just identify which binary build is being used and nothing about the user's
+        // env or machine besides that
+        properties.insert("os".to_owned(), std::env::consts::OS.into());
+        properties.insert("architecture".to_owned(), std::env::consts::ARCH.into());
+
+        #[cfg(target_env = "gnu")]
+        properties.insert("environment".to_owned(), "gnu".into());
+        #[cfg(target_env = "musl")]
+        properties.insert("environment".to_owned(), "musl".into());
+        #[cfg(not(any(target_env = "gnu", target_env = "musl")))]
+        properties.insert("environment".to_owned(), Value::Null);
+
+        properties.insert("cli_version".to_owned(), env!("CARGO_PKG_VERSION").into());
 
         let timestamp = OffsetDateTime::now_utc();
 
