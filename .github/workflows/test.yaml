@@ -37,6 +37,8 @@ jobs:
           override: true
       - name: Cargo Fmt
         run: cargo fmt -- --check
+        
+      - uses: Swatinem/rust-cache@v2
 
       # Default features
       - name: Cargo Clippy Default Features
