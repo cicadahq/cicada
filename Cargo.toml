@@ -8,3 +8,6 @@ homepage = "https://github.com/cicadahq/cicada"
 repository = "http://github.com/cicadahq/cicada"
 license = "MIT"
 authors = ["Cicada Team"]
+
+[profile.release]
+lto = true

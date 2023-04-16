@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use camino::Utf8PathBuf;
 use serde::{Deserialize, Serialize};
 
-use crate::{git::Github, DENO_VERSION};
+use crate::{deno::DENO_VERSION, git::Github};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
