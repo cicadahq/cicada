@@ -195,10 +195,12 @@ impl Job {
     ) -> String {
         let mut lines: Vec<String> = vec!["# syntax = docker/dockerfile:1.4".into()];
 
-        lines.push(format!("FROM denoland/deno:bin-{DENO_VERSION} as deno-bin"));
+        lines.push(format!(
+            "FROM docker.io/denoland/deno:bin-{DENO_VERSION} as deno-bin"
+        ));
         if !bootstrap {
             lines.push(format!(
-                "FROM --platform=linux/amd64 cicadahq/cicada-bin:{} as cicada-bin",
+                "FROM --platform=linux/amd64 docker.io/cicadahq/cicada-bin:{} as cicada-bin",
                 env!("CARGO_PKG_VERSION")
             ));
         }

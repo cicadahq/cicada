@@ -3,6 +3,7 @@ mod deno;
 mod git;
 mod job;
 mod logging;
+mod oci;
 #[cfg(feature = "telemetry")]
 mod telemetry;
 #[cfg(feature = "self-update")]
@@ -12,6 +13,7 @@ mod util;
 use anyhow::{bail, Context, Result};
 use clap_complete::generate;
 use logging::logging_init;
+use oci::OciBackend;
 use once_cell::sync::Lazy;
 use std::{
     ffi::OsStr,
@@ -134,8 +136,13 @@ where
 }
 
 /// Check that docker is installed and buildx is installed, other checks before running cicada can be added here
-async fn runtime_checks() {
+async fn runtime_checks(oci: &OciBackend) {
     if std::env::var_os("CICADA_SKIP_CHECKS").is_some() {
+        return;
+    }
+
+    // We dont do any checks for podman yet
+    if oci == &OciBackend::Podman {
         return;
     }
 
@@ -241,26 +248,27 @@ pub fn resolve_pipeline(pipeline: impl AsRef<Path>) -> Result<PathBuf> {
 }
 
 #[derive(Parser, Debug)]
-#[command(bin_name = "cicada", author, version, about)]
+#[command(name = "cicada", bin_name = "cicada", author, version, about)]
 enum Commands {
     /// Run a cicada pipeline
     Run {
         /// Path to the pipeline file
         pipeline: PathBuf,
+
         /// Name of the secret to use, these come from environment variables
         ///
         /// The CLI will also look for a .env file
-        #[clap(short, long)]
+        #[arg(short, long)]
         secret: Vec<String>,
 
         /// Do not load .env file
-        #[clap(long)]
+        #[arg(long)]
         no_dotenv: bool,
 
         /// Load a custom .env file
         ///
         /// This will override the default .env lookup
-        #[clap(long)]
+        #[arg(long)]
         dotenv: Option<PathBuf>,
 
         /// Load secrets from a json file
@@ -270,14 +278,18 @@ enum Commands {
         ///     "KEY": "VALUE",
         ///     "KEY2": "VALUE2"
         /// }`
-        #[clap(long)]
+        #[arg(long)]
         secrets_json: Option<PathBuf>,
 
         /// A custom dockerfile to load the cicada bin from
         ///
         /// In the dev reop this is `./docker/bin.Dockerfile`
-        #[clap(long, hide = true)]
+        #[arg(long, hide = true)]
         cicada_dockerfile: Option<PathBuf>,
+
+        /// The backend to use for OCI
+        #[arg(long, default_value = "docker", env = "CICADA_OCI_BACKEND")]
+        oci_backend: OciBackend,
     },
     /// Run a step in a cicada workflow
     #[command(hide = true)]
@@ -291,7 +303,11 @@ enum Commands {
     /// List all available completions
     Completions { shell: clap_complete::Shell },
     #[command(hide = true)]
-    Doctor,
+    Doctor {
+        /// The backend to use for OCI
+        #[arg(long, default_value = "docker", env = "CICADA_OCI_BACKEND")]
+        oci_backend: OciBackend,
+    },
 }
 
 impl Commands {
@@ -304,12 +320,13 @@ impl Commands {
                 dotenv,
                 secrets_json,
                 cicada_dockerfile,
+                oci_backend,
             } => {
                 #[cfg(feature = "self-update")]
-                tokio::join!(check_for_update(), runtime_checks());
+                tokio::join!(check_for_update(), runtime_checks(&oci_backend));
 
                 #[cfg(not(feature = "self-update"))]
-                runtime_checks().await;
+                runtime_checks(&oci_backend).await;
 
                 info!(
                     "\n{}{}\n{}{}\n",
@@ -328,7 +345,7 @@ impl Commands {
 
                     info!("Building cicada bootstrap image...\n");
 
-                    let status = Command::new("docker")
+                    let status = Command::new(oci_backend.as_str())
                         .arg("build")
                         .arg("-t")
                         .arg(&tag)
@@ -338,11 +355,14 @@ impl Commands {
                         .spawn()?
                         .wait()
                         .await
-                        .map_err(|err| anyhow::anyhow!("Unable to run docker build: {err}"))?;
+                        .map_err(|err| {
+                            anyhow::anyhow!("Unable to run {} build: {err}", oci_backend.as_str())
+                        })?;
 
                     if !status.success() {
                         anyhow::bail!(
-                            "Unable to build cicada bootstrap image, please check the docker build output"
+                            "Unable to build cicada bootstrap image, please check the {} build output",
+                            oci_backend.as_str()
                         );
                     }
 
@@ -516,7 +536,7 @@ impl Commands {
 
                                 args.push("-".into());
 
-                                let mut buildx_cmd = Command::new("docker");
+                                let mut buildx_cmd = Command::new(oci_backend.as_str());
                                 buildx_cmd
                                     .args(args)
                                     .stdin(Stdio::piped())
@@ -630,7 +650,7 @@ impl Commands {
                                             warn!("{long_name} failed with status {exit_status} but was ignored");
                                         }
                                         Some(OnFail::Stop) | None if !exit_status.success() => {
-                                            error!("Docker build failed for {long_name} with status {exit_status}");
+                                            error!("Build failed for {long_name} with status {exit_status}");
                                             std::process::exit(1);
                                         }
                                         _ => {
@@ -783,9 +803,9 @@ impl Commands {
                     &mut std::io::stdout(),
                 );
             }
-            Commands::Doctor => {
+            Commands::Doctor { oci_backend } => {
                 info!("Checking for common problems...");
-                runtime_checks().await;
+                runtime_checks(&oci_backend).await;
                 info!("\nAll checks passed!");
             }
         }
@@ -802,7 +822,7 @@ impl Commands {
             Commands::New { .. } => "new",
             Commands::Update => "update",
             Commands::Completions { .. } => "completions",
-            Commands::Doctor => "doctor",
+            Commands::Doctor { .. } => "doctor",
         }
     }
 }
