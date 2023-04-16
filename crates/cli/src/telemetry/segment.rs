@@ -51,7 +51,11 @@ impl TrackEvent {
             ),
         };
 
-        // insert the default properties (os, architecture, environment, cli_version)
+        // Insert the default properties (os, architecture, environment, cli_version)
+        //
+        // Want to make sure the telemetry is useful but not too identifying basically
+        // just identify which binary build is being used and nothing about the user's
+        // env or machine besides that
         properties.insert("os".to_owned(), std::env::consts::OS.into());
         properties.insert("architecture".to_owned(), std::env::consts::ARCH.into());
 
