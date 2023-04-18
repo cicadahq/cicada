@@ -4,7 +4,7 @@ const env = {
   RUST_VERSION: "1.68.2",
   CARGO_HOME: "/usr/local/cargo",
   RUSTUP_HOME: "/usr/local/rustup",
-}
+};
 
 const muslJob = new Job({
   name: "Build musl",

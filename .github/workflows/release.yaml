@@ -61,7 +61,7 @@ jobs:
         if: matrix.target == 'x86_64-unknown-linux-gnu' || matrix.target == 'x86_64-unknown-linux-musl'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libssl-dev musl-tools
+          sudo apt-get install -y libssl-dev musl-tools protobuf-compiler
 
       - uses: Swatinem/rust-cache@v2
 
