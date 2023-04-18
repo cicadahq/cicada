@@ -78,7 +78,7 @@ impl TrackEvent {
                 "pipeline_executed".into(),
                 [
                     (
-                        "pipeline_name".to_owned(),
+                        "pipeline_name_hash".to_owned(),
                         digest(
                             format!(
                                 "{}{pipeline_name}",
