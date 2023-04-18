@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use semver::{Version, VersionReq};
 use tokio::process::Command;
 
-pub const DENO_VERSION: &str = "1.32.4";
+pub const DENO_VERSION: &str = "1.32.5";
 pub const DENO_VERSION_REQ: &str = ">=1.32";
 
 pub fn deno_version_req() -> VersionReq {
