@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use camino::Utf8PathBuf;
 use serde::{Deserialize, Serialize};
@@ -30,6 +30,16 @@ impl CacheSharing {
     }
 }
 
+impl From<CacheSharing> for buildkit_rs::llb::CacheSharingMode {
+    fn from(sharing: CacheSharing) -> Self {
+        match sharing {
+            CacheSharing::Shared => buildkit_rs::llb::CacheSharingMode::Shared,
+            CacheSharing::Private => buildkit_rs::llb::CacheSharingMode::Private,
+            CacheSharing::Locked => buildkit_rs::llb::CacheSharingMode::Locked,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CacheDirectory {
@@ -52,6 +62,20 @@ impl CacheDirectory {
         }
 
         flag
+    }
+
+    fn to_mount(&self, working_directory: &Utf8PathBuf) -> buildkit_rs::llb::Mount {
+        let path = if self.path.is_absolute() {
+            self.path.to_owned()
+        } else {
+            working_directory.join(&self.path)
+        };
+
+        buildkit_rs::llb::Mount::cache(
+            path.clone(),
+            path,
+            self.sharing.map(|s| s.into()).unwrap_or_default(),
+        )
     }
 }
 
@@ -164,6 +188,86 @@ impl Step {
 
         lines
     }
+
+    fn to_exec<'a, 'b: 'a>(
+        &'b self,
+        root_mount: buildkit_rs::llb::Mount<'a>,
+        parent_cache_directories: &'b [CacheDirectory],
+        parent_working_directory: &'b Utf8PathBuf,
+        env: &'b [String],
+        job_index: usize,
+        step_index: usize,
+    ) -> buildkit_rs::llb::Exec<'a> {
+        use buildkit_rs::llb::*;
+
+        let mut exec = match &self.run {
+            StepRun::Command { command } => {
+                Exec::shlex(format!("bash -c {}", shlex::quote(command)))
+            }
+            StepRun::DenoFunction => Exec::shlex(format!("cicada step {job_index} {step_index}")),
+        }
+        .with_mount(root_mount);
+
+        // If the step has a working directory, we need to set it
+        let working_directory = if let Some(working_directory) = &self.working_directory {
+            // This is relative to the parent working directory if it is not absolute
+
+            if working_directory.is_absolute() {
+                working_directory.to_owned()
+            } else {
+                parent_working_directory.join(working_directory)
+            }
+        } else {
+            parent_working_directory.to_owned()
+        };
+
+        exec = exec.with_cwd(working_directory.clone().into());
+
+        for cache_directory in &self.cache_directories {
+            exec = exec.with_mount(cache_directory.to_mount(&working_directory));
+        }
+
+        for cache_directory in parent_cache_directories {
+            exec = exec.with_mount(cache_directory.to_mount(&working_directory));
+        }
+
+        // Cache the deno directory
+        if StepRun::DenoFunction == self.run {
+            exec = exec.with_mount(Mount::cache(
+                "/root/.cache/deno",
+                "/root/.cache/deno",
+                CacheSharingMode::default(),
+            ));
+        }
+
+        // TODO: we are not supporting secrets yet as the buildctl makes it hard
+        // for secret in &self.secrets {
+        //     exec = exec.with_mount(buildkit_rs::llb::Mount::secret(
+        //         secret,
+        //         format!("/run/secrets/{secret}"),
+        //         0,
+        //         0,
+        //         0o600,
+        //         false,
+        //     ));
+        // }
+
+        // Set the environment variables
+        exec = exec.with_env(
+            self.env
+                .iter()
+                .map(|(key, value)| format!("{key}={value}"))
+                .chain(env.iter().cloned())
+                .collect(),
+        );
+
+        // Invalidate the cache if the step is marked as ignore_cache by generating a non-deterministic environment variable
+        if self.ignore_cache.unwrap_or(false) {
+            exec = exec.ignore_cache(true);
+        }
+
+        exec
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -248,6 +352,77 @@ impl Job {
         }
 
         lines.join("\n")
+    }
+
+    pub fn to_llb(
+        &self,
+        module_name: &str,
+        github: &Option<Github>,
+        job_index: usize,
+        // bootstrap: bool,
+    ) -> Vec<u8> {
+        use buildkit_rs::llb::*;
+
+        let working_directory = self
+            .working_directory
+            .clone()
+            .unwrap_or_else(|| Utf8PathBuf::from("/app"));
+
+        let local: Local = Local::new("local".into());
+
+        let image = Image::new(&self.image).with_custom_name(self.name.clone().unwrap());
+
+        let deno_image = Image::new(format!("docker.io/denoland/deno:bin-{DENO_VERSION}"));
+        let cicada_image = Image::new(format!(
+            "docker.io/cicadahq/cicada-bin:{}",
+            env!("CARGO_PKG_VERSION")
+        ));
+
+        let deno_cp = Exec::shlex("cp /deno/deno /usr/local/bin/deno")
+            .with_mount(Mount::layer(image.output(), "/", 0))
+            .with_mount(Mount::layer_readonly(deno_image.output(), "/deno"));
+
+        let cicada_cp = Exec::shlex("cp /cicada/cicada /usr/local/bin/cicada")
+            .with_mount(Mount::layer(deno_cp.output(0), "/", 0))
+            .with_mount(Mount::layer_readonly(cicada_image.output(), "/cicada"));
+
+        let local_cp = Exec::shlex(format!(
+            "/bin/sh -c 'mkdir -p {working_directory} && cp -r /local/* {working_directory}'"
+        ))
+        .with_mount(Mount::layer(cicada_cp.output(0), "/", 0))
+        .with_mount(Mount::layer_readonly(local.output(), "/local"));
+
+        let mut env = vec![
+            "CI=1".into(),
+            format!("CICADA_PIPELINE_FILE={working_directory}/.cicada/{module_name}",),
+            "CICADA_JOB=1".into(),
+            // TODO: we need to grab the env from the image and add it to this
+        ];
+
+        if let Some(github_repository) = github {
+            env.push(format!("GITHUB_REPOSITORY={github_repository}"));
+        }
+
+        let mut prev_step = Arc::new(local_cp);
+        for (step_index, step) in self.steps.iter().enumerate() {
+            let output = MultiOwnedOutput::output(&prev_step, 0);
+            let root = Mount::layer(output, "/", 0);
+
+            let exec = Arc::new(step.to_exec(
+                root,
+                &self.cache_directories,
+                &working_directory,
+                &env,
+                job_index,
+                step_index,
+            ));
+
+            prev_step = exec;
+        }
+
+        let bytes = Definition::new(prev_step.output(0)).into_bytes();
+
+        bytes
     }
 
     pub fn display_name(&self, index: usize) -> String {

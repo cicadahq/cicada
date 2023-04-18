@@ -142,11 +142,11 @@ pub async fn deno_exe() -> anyhow::Result<PathBuf> {
 }
 
 #[cfg(test)]
+#[cfg(feature = "managed-deno")]
 mod tests {
     use super::*;
 
     #[tokio::test]
-    #[cfg(feature = "managed-deno")]
     async fn test_download_deno() {
         // Remove the managed deno dir if it exists
         let managed_deno_dir = managed_deno_dir().unwrap();
@@ -178,7 +178,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "managed-deno")]
     fn deno_version_assert() {
         deno_version_req();
     }
