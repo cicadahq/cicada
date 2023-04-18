@@ -375,6 +375,23 @@ impl Commands {
 
                 let pipeline = resolve_pipeline(pipeline)?;
                 let pipeline_file_name = pipeline.file_name().unwrap();
+
+                #[cfg(feature = "telemetry")]
+                let telem_join = segment_enabled().then(|| {
+                    let pipeline_name = pipeline_file_name.to_string_lossy().to_string();
+                    let pipeline_length = std::fs::read_to_string(&pipeline)
+                        .map(|f| f.lines().count())
+                        .ok();
+
+                    tokio::spawn(
+                        TrackEvent::PipelineExecuted {
+                            pipeline_name,
+                            pipeline_length,
+                        }
+                        .post(),
+                    )
+                });
+
                 let project_dir = pipeline.parent().unwrap().parent().unwrap();
                 let pipeline_url = Url::from_file_path(&pipeline)
                     .map_err(|_| anyhow::anyhow!("Unable to convert pipeline path to URL"))?;
@@ -495,7 +512,8 @@ impl Commands {
                     .collect();
                 let graph = topological_sort(&invert_graph(&nodes))?;
 
-                for run_group in graph {
+                let mut exit_code = 0;
+                'run_groups: for run_group in graph {
                     match futures::future::try_join_all(run_group.into_iter().map(|job| {
                         let (job_index, job) = jobs.remove(&job).unwrap();
 
@@ -651,7 +669,8 @@ impl Commands {
                                         }
                                         Some(OnFail::Stop) | None if !exit_status.success() => {
                                             error!("Build failed for {long_name} with status {exit_status}");
-                                            std::process::exit(1);
+                                            exit_code = 1;
+                                            break 'run_groups;
                                         }
                                         _ => {
                                             info!("{long_name} finished with status {exit_status}");
@@ -659,13 +678,23 @@ impl Commands {
                                     },
                                     Err(err) => {
                                         error!("{err}");
-                                        std::process::exit(1);
+                                        exit_code = 1;
+                                        break 'run_groups;
                                     }
                                 }
                             }
                         }
                         Err(e) => bail!(e),
                     }
+                }
+
+                #[cfg(feature = "telemetry")]
+                if let Some(join) = telem_join {
+                    join.await.ok();
+                }
+
+                if exit_code != 0 {
+                    std::process::exit(exit_code)
                 }
             }
             Commands::Step { workflow, step } => {
