@@ -1,6 +1,6 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
-use buildkit_rs::llb::{MultiBorrowedOutput, OpMetadataBuilder};
+use buildkit_rs::llb::{MultiBorrowedOutput, MultiOwnedOutput, OpMetadataBuilder};
 use camino::Utf8PathBuf;
 use serde::{Deserialize, Serialize};
 
@@ -260,38 +260,66 @@ impl Job {
         let deno_image =
             buildkit_rs::llb::Image::new(format!("docker.io/denoland/deno:bin-{DENO_VERSION}"));
 
+        let local = buildkit_rs::llb::Local::new("local".into());
+
         let cicada_image = buildkit_rs::llb::Image::new(format!(
             "docker.io/cicadahq/cicada-bin:{}",
             env!("CARGO_PKG_VERSION")
         ));
 
-        let deno_cp = buildkit_rs::llb::Exec::shlex("uname")
-            .with_mount(buildkit_rs::llb::Mount::layer(image.output(), "/", 0));
-            // .with_mount(buildkit_rs::llb::Mount::layer(
-            //     cicada_image.output(),
-            //     "/cicada",
-            //     1,
-            // ))
-            // .with_mount(buildkit_rs::llb::Mount::layer(
-            //     deno_image.output(),
-            //     "/deno",
-            //     2,
-            // ))
+        let deno_cp = buildkit_rs::llb::Exec::shlex("cp /deno/deno /usr/local/bin/deno")
+            .with_mount(buildkit_rs::llb::Mount::layer(image.output(), "/", 0))
+            .with_mount(buildkit_rs::llb::Mount::layer_readonly(
+                deno_image.output(),
+                "/deno",
+            ));
 
-        dbg!(&deno_cp);
+        let cicada_cp = buildkit_rs::llb::Exec::shlex("cp /cicada/cicada /usr/local/bin/cicada")
+            .with_mount(buildkit_rs::llb::Mount::layer(deno_cp.output(0), "/", 0))
+            .with_mount(buildkit_rs::llb::Mount::layer_readonly(
+                cicada_image.output(),
+                "/cicada",
+            ));
 
-        // let cicada_cp = buildkit_rs::llb::Exec::shlex("cp /cicada /usr/local/bin/cicada")
-        //     .with_mount(buildkit_rs::llb::Mount::layer(deno_cp.output(0), "/", 0))
-        //     .with_mount(buildkit_rs::llb::Mount::layer_readonly(
-        //         cicada_image.output(),
-        //         "/cicada",
-        //     ));
+        let local_cp =
+            buildkit_rs::llb::Exec::shlex("/bin/sh -c 'mkdir -p /app && cp -r /local/* /app'")
+                .with_mount(buildkit_rs::llb::Mount::layer(cicada_cp.output(0), "/", 0))
+                .with_mount(buildkit_rs::llb::Mount::layer_readonly(
+                    local.output(),
+                    "/local",
+                ));
 
-        // // Run cicada -V to make sure cicada is installed
-        // let cicada_version = buildkit_rs::llb::Exec::shlex("cicada -V")
-        //     .with_mount(buildkit_rs::llb::Mount::layer(cicada_cp.output(0), "/", 0));
+        let cicada_version = buildkit_rs::llb::Exec::shlex("cicada -V")
+            .with_mount(buildkit_rs::llb::Mount::layer(local_cp.output(0), "/", 0));
 
-        let bytes = buildkit_rs::llb::Definition::new(deno_cp.output(1)).into_bytes();
+        let mut prev_step = Arc::new(cicada_version);
+        for step in &self.steps {
+            match &step.run {
+                StepRun::Command { command } => {
+                    let output = MultiOwnedOutput::output(&prev_step, 0);
+
+                    let exec = Arc::new(
+                        buildkit_rs::llb::Exec::shlex(format!("/bin/bash -c '{command}'"))
+                            .with_custom_name(command)
+                            .with_mount(buildkit_rs::llb::Mount::layer(output, "/", 0))
+                            .with_env(
+                                vec![
+                                    "PATH=/usr/local/cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin".into(),
+                                    "RUSTUP_HOME=/usr/local/rustup".into(),
+                                    "CARGO_HOME=/usr/local/cargo".into(),
+                                    "RUST_VERSION=1.68.2".into()
+                                ]
+                            )
+                            .with_cwd("/app".into())
+                    );
+
+                    prev_step = exec;
+                }
+                StepRun::DenoFunction => {}
+            }
+        }
+
+        let bytes = buildkit_rs::llb::Definition::new(prev_step.output(0)).into_bytes();
 
         bytes
     }

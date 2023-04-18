@@ -442,11 +442,13 @@ impl Commands {
 
                     let mut buildctl = if llb {
                         Command::new("buildctl")
-                            .arg("--debug")
+                            // .arg("--debug")
                             .arg("b")
                             .arg("--progress")
                             .arg("plain")
                             .arg("--no-cache")
+                            .arg("--local")
+                            .arg(format!("local={}", project_dir.display()))
                             .env("BUILDKIT_HOST", "docker-container://buildkitd")
                             .stdin(Stdio::piped())
                             .spawn()?

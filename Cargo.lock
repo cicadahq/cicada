@@ -211,7 +211,7 @@ dependencies = [
 [[package]]
 name = "buildkit-rs"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#d447e9333ca00e5c82ea1f716d4ca87f26841d0e"
+source = "git+https://github.com/cicadahq/buildkit-rs.git#16bb0202fd00f48d5a6576da432d5d5fdf360536"
 dependencies = [
  "buildkit-rs-frontend",
  "buildkit-rs-llb",
@@ -223,7 +223,7 @@ dependencies = [
 [[package]]
 name = "buildkit-rs-frontend"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#d447e9333ca00e5c82ea1f716d4ca87f26841d0e"
+source = "git+https://github.com/cicadahq/buildkit-rs.git#16bb0202fd00f48d5a6576da432d5d5fdf360536"
 dependencies = [
  "tonic",
 ]
@@ -231,7 +231,7 @@ dependencies = [
 [[package]]
 name = "buildkit-rs-llb"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#d447e9333ca00e5c82ea1f716d4ca87f26841d0e"
+source = "git+https://github.com/cicadahq/buildkit-rs.git#16bb0202fd00f48d5a6576da432d5d5fdf360536"
 dependencies = [
  "buildkit-rs-proto",
  "buildkit-rs-reference",
@@ -245,7 +245,7 @@ dependencies = [
 [[package]]
 name = "buildkit-rs-proto"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#d447e9333ca00e5c82ea1f716d4ca87f26841d0e"
+source = "git+https://github.com/cicadahq/buildkit-rs.git#16bb0202fd00f48d5a6576da432d5d5fdf360536"
 dependencies = [
  "prost",
  "prost-build",
@@ -257,7 +257,7 @@ dependencies = [
 [[package]]
 name = "buildkit-rs-reference"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#d447e9333ca00e5c82ea1f716d4ca87f26841d0e"
+source = "git+https://github.com/cicadahq/buildkit-rs.git#16bb0202fd00f48d5a6576da432d5d5fdf360536"
 dependencies = [
  "once_cell",
  "regex",
@@ -267,7 +267,7 @@ dependencies = [
 [[package]]
 name = "buildkit-rs-util"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#d447e9333ca00e5c82ea1f716d4ca87f26841d0e"
+source = "git+https://github.com/cicadahq/buildkit-rs.git#16bb0202fd00f48d5a6576da432d5d5fdf360536"
 
 [[package]]
 name = "bumpalo"
