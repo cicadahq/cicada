@@ -290,6 +290,12 @@ enum Commands {
         /// The backend to use for OCI
         #[arg(long, default_value = "docker", env = "CICADA_OCI_BACKEND")]
         oci_backend: OciBackend,
+
+        #[arg(long)]
+        llb: bool,
+
+        #[arg(long)]
+        llb_debug: bool,
     },
     /// Run a step in a cicada workflow
     #[command(hide = true)]
@@ -321,6 +327,8 @@ impl Commands {
                 secrets_json,
                 cicada_dockerfile,
                 oci_backend,
+                llb,
+                llb_debug,
             } => {
                 #[cfg(feature = "self-update")]
                 tokio::join!(check_for_update(), runtime_checks(&oci_backend));
@@ -420,6 +428,50 @@ impl Commands {
                 };
 
                 let pipeline = serde_json::from_str::<Pipeline>(&out)?;
+
+                if llb | llb_debug {
+                    if pipeline.jobs.len() != 1 {
+                        anyhow::bail!(
+                            "LLB output is only supported for pipelines with a single job"
+                        );
+                    }
+
+                    let llb_vec = pipeline.jobs[0].to_llb();
+
+                    // pipe into `buildctl b --progress plain --no-cache`
+
+                    let mut buildctl = if llb {
+                        Command::new("buildctl")
+                            .arg("--debug")
+                            .arg("b")
+                            .arg("--progress")
+                            .arg("plain")
+                            .arg("--no-cache")
+                            .env("BUILDKIT_HOST", "docker-container://buildkitd")
+                            .stdin(Stdio::piped())
+                            .spawn()?
+                    } else {
+                        Command::new("buildctl")
+                            .arg("debug")
+                            .arg("dump-llb")
+                            .stdin(Stdio::piped())
+                            .spawn()?
+                    };
+
+                    let mut stdin = buildctl.stdin.take().unwrap();
+                    stdin.write_all(&llb_vec).await?;
+                    drop(stdin);
+
+                    info!("Running buildctl...");
+
+                    let status = buildctl.wait().await?;
+
+                    if !status.success() {
+                        anyhow::bail!("buildctl failed");
+                    }
+
+                    return Ok(());
+                }
 
                 // Check if we should run this pipeline based on the git event
                 if let (Ok(git_event), Ok(base_ref)) = (

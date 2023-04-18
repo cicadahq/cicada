@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use buildkit_rs::llb::{MultiBorrowedOutput, OpMetadataBuilder};
 use camino::Utf8PathBuf;
 use serde::{Deserialize, Serialize};
 
@@ -248,6 +249,51 @@ impl Job {
         }
 
         lines.join("\n")
+    }
+
+    pub fn to_llb(&self) -> Vec<u8> {
+        use buildkit_rs::llb::SingleBorrowedOutput;
+
+        let image =
+            buildkit_rs::llb::Image::new(&self.image).with_custom_name(self.name.clone().unwrap());
+
+        let deno_image =
+            buildkit_rs::llb::Image::new(format!("docker.io/denoland/deno:bin-{DENO_VERSION}"));
+
+        let cicada_image = buildkit_rs::llb::Image::new(format!(
+            "docker.io/cicadahq/cicada-bin:{}",
+            env!("CARGO_PKG_VERSION")
+        ));
+
+        let deno_cp = buildkit_rs::llb::Exec::shlex("uname")
+            .with_mount(buildkit_rs::llb::Mount::layer(image.output(), "/", 0));
+            // .with_mount(buildkit_rs::llb::Mount::layer(
+            //     cicada_image.output(),
+            //     "/cicada",
+            //     1,
+            // ))
+            // .with_mount(buildkit_rs::llb::Mount::layer(
+            //     deno_image.output(),
+            //     "/deno",
+            //     2,
+            // ))
+
+        dbg!(&deno_cp);
+
+        // let cicada_cp = buildkit_rs::llb::Exec::shlex("cp /cicada /usr/local/bin/cicada")
+        //     .with_mount(buildkit_rs::llb::Mount::layer(deno_cp.output(0), "/", 0))
+        //     .with_mount(buildkit_rs::llb::Mount::layer_readonly(
+        //         cicada_image.output(),
+        //         "/cicada",
+        //     ));
+
+        // // Run cicada -V to make sure cicada is installed
+        // let cicada_version = buildkit_rs::llb::Exec::shlex("cicada -V")
+        //     .with_mount(buildkit_rs::llb::Mount::layer(cicada_cp.output(0), "/", 0));
+
+        let bytes = buildkit_rs::llb::Definition::new(deno_cp.output(1)).into_bytes();
+
+        bytes
     }
 
     pub fn display_name(&self, index: usize) -> String {
