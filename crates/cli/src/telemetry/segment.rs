@@ -31,7 +31,13 @@ static ANONYMOUS_ID: Lazy<Option<String>> = Lazy::new(|| {
 
 #[derive(PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub enum TrackEvent {
-    SubcommandExecuted { subcommand_name: String },
+    SubcommandExecuted {
+        subcommand_name: String,
+    },
+    PipelineExecuted {
+        pipeline_name: String,
+        pipeline_length: Option<u64>,
+    },
 }
 
 impl TrackEvent {
@@ -48,6 +54,46 @@ impl TrackEvent {
                 [("subcommand_name".to_owned(), Value::String(subcommand_name))]
                     .into_iter()
                     .collect::<Map<String, Value>>(),
+            ),
+            TrackEvent::PipelineExecuted {
+                pipeline_name,
+                pipeline_length,
+            } => (
+                "pipeline_executed".into(),
+                [
+                    ("pipeline_name".to_owned(), Value::String(pipeline_name)),
+                    ("pipeline_length".to_owned(), pipeline_length.into()),
+                    (
+                        "gh_actions".to_owned(),
+                        std::env::var_os("GITHUB_ACTIONS").is_some().into(),
+                    ),
+                    (
+                        "vercel".to_owned(),
+                        std::env::var_os("VERCEL").is_some().into(),
+                    ),
+                    (
+                        "circle_ci".to_owned(),
+                        std::env::var_os("CIRCLECI").is_some().into(),
+                    ),
+                    (
+                        "gitlab".to_owned(),
+                        std::env::var_os("GITLAB_CI").is_some().into(),
+                    ),
+                    (
+                        "travis".to_owned(),
+                        std::env::var_os("TRAVIS").is_some().into(),
+                    ),
+                    (
+                        "jenkins".to_owned(),
+                        std::env::var_os("JENKINS_URL").is_some().into(),
+                    ),
+                    (
+                        "azure".to_owned(),
+                        std::env::var_os("BUILD_BUILDURI").is_some().into(),
+                    ),
+                ]
+                .into_iter()
+                .collect::<Map<String, Value>>(),
             ),
         };
 
