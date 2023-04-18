@@ -6,21 +6,21 @@ for (const examples of Deno.readDirSync(".")) {
 
   for (const pipeline of Deno.readDirSync(cicadaDir)) {
     if (extname(pipeline.name) !== ".ts") continue;
-    
+
     const path = join(cicadaDir, pipeline.name);
     console.log(path);
 
     const child = new Deno.Command("cargo", {
-        args:[
-            "run",
-            "-p",
-            "cicada-cli",
-            "--",
-            "run",
-            "--cicada-dockerfile",
-            "../docker/bin.Dockerfile",
-            path
-        ],
+      args: [
+        "run",
+        "-p",
+        "cicada-cli",
+        "--",
+        "run",
+        "--cicada-dockerfile",
+        "../docker/bin.Dockerfile",
+        path,
+      ],
     }).spawn();
 
     const status = await child.status;
