@@ -7,11 +7,11 @@ use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Map;
 use serde_json::Value;
-use sha256::digest;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
 use crate::util::data_path;
+use crate::util::digest;
 
 use super::SEGMENT_WRITE_KEY;
 
@@ -79,12 +79,15 @@ impl TrackEvent {
                 [
                     (
                         "pipeline_name".to_owned(),
-                        digest(format!(
-                            "{}{pipeline_name}",
-                            (*SEGMENT_SALT)
-                                .to_owned()
-                                .context("failed to acquire salt")?
-                        ))
+                        digest(
+                            format!(
+                                "{}{pipeline_name}",
+                                (*SEGMENT_SALT)
+                                    .to_owned()
+                                    .context("failed to acquire salt")?
+                            )
+                            .as_bytes(),
+                        )
                         .into(),
                     ),
                     ("pipeline_length".to_owned(), pipeline_length.into()),
