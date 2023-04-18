@@ -123,9 +123,9 @@ checksum = "d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa"
 
 [[package]]
 name = "axum"
-version = "0.6.15"
+version = "0.6.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3b32c5ea3aabaf4deb5f5ced2d688ec0844c881c9e6c696a8b769a05fc691e62"
+checksum = "113713495a32dd0ab52baf5c10044725aa3aec00b31beda84218e469029b72a3"
 dependencies = [
  "async-trait",
  "axum-core",
@@ -211,7 +211,7 @@ dependencies = [
 [[package]]
 name = "buildkit-rs"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#16bb0202fd00f48d5a6576da432d5d5fdf360536"
+source = "git+https://github.com/cicadahq/buildkit-rs.git#2784d0e622963fae1d0f83bf4db8dc1b307828f1"
 dependencies = [
  "buildkit-rs-frontend",
  "buildkit-rs-llb",
@@ -223,7 +223,7 @@ dependencies = [
 [[package]]
 name = "buildkit-rs-frontend"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#16bb0202fd00f48d5a6576da432d5d5fdf360536"
+source = "git+https://github.com/cicadahq/buildkit-rs.git#2784d0e622963fae1d0f83bf4db8dc1b307828f1"
 dependencies = [
  "tonic",
 ]
@@ -231,7 +231,7 @@ dependencies = [
 [[package]]
 name = "buildkit-rs-llb"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#16bb0202fd00f48d5a6576da432d5d5fdf360536"
+source = "git+https://github.com/cicadahq/buildkit-rs.git#2784d0e622963fae1d0f83bf4db8dc1b307828f1"
 dependencies = [
  "buildkit-rs-proto",
  "buildkit-rs-reference",
@@ -245,7 +245,7 @@ dependencies = [
 [[package]]
 name = "buildkit-rs-proto"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#16bb0202fd00f48d5a6576da432d5d5fdf360536"
+source = "git+https://github.com/cicadahq/buildkit-rs.git#2784d0e622963fae1d0f83bf4db8dc1b307828f1"
 dependencies = [
  "prost",
  "prost-build",
@@ -257,7 +257,7 @@ dependencies = [
 [[package]]
 name = "buildkit-rs-reference"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#16bb0202fd00f48d5a6576da432d5d5fdf360536"
+source = "git+https://github.com/cicadahq/buildkit-rs.git#2784d0e622963fae1d0f83bf4db8dc1b307828f1"
 dependencies = [
  "once_cell",
  "regex",
@@ -267,7 +267,7 @@ dependencies = [
 [[package]]
 name = "buildkit-rs-util"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#16bb0202fd00f48d5a6576da432d5d5fdf360536"
+source = "git+https://github.com/cicadahq/buildkit-rs.git#2784d0e622963fae1d0f83bf4db8dc1b307828f1"
 
 [[package]]
 name = "bumpalo"
@@ -346,9 +346,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.2.2"
+version = "4.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b802d85aaf3a1cdb02b224ba472ebdea62014fccfcb269b95a4d76443b5ee5a"
+checksum = "49f9152d70e42172fdb87de2efd7327160beee37886027cf86f30a233d5b30b4"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -357,9 +357,9 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.2.2"
+version = "4.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "14a1a858f532119338887a4b8e1af9c60de8249cd7bafd68036a489e261e37b6"
+checksum = "e067b220911598876eb55d52725ddcc201ffe3f0904018195973bc5b012ea2ca"
 dependencies = [
  "anstream",
  "anstyle",
@@ -980,9 +980,9 @@ checksum = "3304a64d199bb964be99741b7a14d26972741915b3649639149b2479bb46f4b5"
 
 [[package]]
 name = "linux-raw-sys"
-version = "0.3.1"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d59d8c75012853d2e872fb56bc8a2e53718e2cafe1a4c823143141c6d90c322f"
+checksum = "3f508063cc7bb32987c71511216bd5a32be15bccb6a80b52df8b9d7f01fc3aa2"
 
 [[package]]
 name = "lock_api"
@@ -1461,9 +1461,9 @@ dependencies = [
 
 [[package]]
 name = "rustix"
-version = "0.37.11"
+version = "0.37.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "85597d61f83914ddeba6a47b3b8ffe7365107221c2e557ed94426489fefb5f77"
+checksum = "722529a737f5a942fdbac3a46cee213053196737c5eaa3386d52e85b786f2659"
 dependencies = [
  "bitflags",
  "errno",
