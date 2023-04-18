@@ -71,7 +71,7 @@ jobs:
       - name: Install Windows dependencies
         if: matrix.target == 'x86_64-pc-windows-msvc'
         run: |
-          choco install openssl protobuf
+          choco install openssl protoc
 
       - uses: Swatinem/rust-cache@v2
 
