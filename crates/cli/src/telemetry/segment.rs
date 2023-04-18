@@ -1,4 +1,7 @@
+use std::collections::hash_map::DefaultHasher;
 use std::fs::read_to_string;
+use std::hash::Hash;
+use std::hash::Hasher;
 
 use anyhow::Context;
 use anyhow::Result;
@@ -16,6 +19,21 @@ use super::SEGMENT_WRITE_KEY;
 
 static ANONYMOUS_ID: Lazy<Option<String>> = Lazy::new(|| {
     let data_path = data_path().ok()?.join("segment_anonymous_id");
+
+    let contents = match read_to_string(&data_path) {
+        Ok(contents) => contents.trim().to_string(),
+        Err(_) => {
+            let uuid = Uuid::new_v4().to_string();
+            std::fs::write(&data_path, &uuid).ok()?;
+            uuid
+        }
+    };
+
+    Some(contents)
+});
+
+static SEGMENT_SALT: Lazy<Option<String>> = Lazy::new(|| {
+    let data_path = data_path().ok()?.join("segment_salt");
 
     let contents = match read_to_string(&data_path) {
         Ok(contents) => contents.trim().to_string(),
@@ -61,7 +79,14 @@ impl TrackEvent {
             } => (
                 "pipeline_executed".into(),
                 [
-                    ("pipeline_name".to_owned(), Value::String(pipeline_name)),
+                    ("pipeline_name".to_owned(), {
+                        let mut hasher = DefaultHasher::new();
+                        let salt = (*SEGMENT_SALT)
+                            .to_owned()
+                            .context("failed to acquire salt")?;
+                        format!("{salt}{pipeline_name}").hash(&mut hasher);
+                        hasher.finish().into()
+                    }),
                     ("pipeline_length".to_owned(), pipeline_length.into()),
                     (
                         "gh_actions".to_owned(),
