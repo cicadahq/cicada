@@ -77,7 +77,7 @@ Add the following to your `.vscode/settings.json`
 
 ## Support
 
-👉 **Docs**: https://deno.land/x/cicada/lib.ts
+👉 **Docs**: https://deno.land/x/cicada/mod.ts
 
 👉 **Discord**: https://discord.gg/g2PRPm4u4Y
 
