@@ -17,6 +17,7 @@ pub fn data_path() -> Result<PathBuf> {
     Ok(path)
 }
 
+#[allow(dead_code)]
 pub fn digest(bytes: &[u8]) -> Vec<u8> {
     let mut hasher = Sha256::new();
     hasher.update(bytes);
