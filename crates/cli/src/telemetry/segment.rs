@@ -1,7 +1,4 @@
-use std::collections::hash_map::DefaultHasher;
 use std::fs::read_to_string;
-use std::hash::Hash;
-use std::hash::Hasher;
 
 use anyhow::Context;
 use anyhow::Result;
@@ -10,6 +7,7 @@ use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Map;
 use serde_json::Value;
+use sha256::digest;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
@@ -79,14 +77,16 @@ impl TrackEvent {
             } => (
                 "pipeline_executed".into(),
                 [
-                    ("pipeline_name".to_owned(), {
-                        let mut hasher = DefaultHasher::new();
-                        let salt = (*SEGMENT_SALT)
-                            .to_owned()
-                            .context("failed to acquire salt")?;
-                        format!("{salt}{pipeline_name}").hash(&mut hasher);
-                        hasher.finish().into()
-                    }),
+                    (
+                        "pipeline_name".to_owned(),
+                        digest(format!(
+                            "{}{pipeline_name}",
+                            (*SEGMENT_SALT)
+                                .to_owned()
+                                .context("failed to acquire salt")?
+                        ))
+                        .into(),
+                    ),
                     ("pipeline_length".to_owned(), pipeline_length.into()),
                     (
                         "gh_actions".to_owned(),
