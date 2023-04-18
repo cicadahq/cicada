@@ -693,7 +693,9 @@ impl Commands {
                     join.await.ok();
                 }
 
-                std::process::exit(exit_code)
+                if exit_code != 0 {
+                    std::process::exit(exit_code)
+                }
             }
             Commands::Step { workflow, step } => {
                 run_deno(
