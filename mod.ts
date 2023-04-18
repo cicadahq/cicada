@@ -1,5 +1,5 @@
-import { resolve } from "https://deno.land/std@0.182.0/path/mod.ts";
-import { DockerImages } from "./types/dockerImages.ts";
+import { resolve } from "https://deno.land/x/cicada/deps.ts";
+import { DockerImages } from "https://deno.land/x/cicada/types/dockerImages.ts";
 
 /**
  * A file path represented as a string.
