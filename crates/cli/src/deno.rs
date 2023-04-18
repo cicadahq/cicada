@@ -143,7 +143,6 @@ pub async fn deno_exe() -> anyhow::Result<PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     #[tokio::test]
     #[cfg(feature = "managed-deno")]

@@ -294,7 +294,7 @@ enum Commands {
         /// Use the new experimental buildkit backend, this requires the
         /// buildkit daemon to be running as `buildkitd` and the `buildctl` CLI
         #[arg(long)]
-        buildkit_expiremental: bool,
+        buildkit_experimental: bool,
     },
     /// Run a step in a cicada workflow
     #[command(hide = true)]
@@ -326,7 +326,7 @@ impl Commands {
                 secrets_json,
                 cicada_dockerfile,
                 oci_backend,
-                buildkit_expiremental,
+                buildkit_experimental,
             } => {
                 #[cfg(feature = "self-update")]
                 tokio::join!(check_for_update(), runtime_checks(&oci_backend));
@@ -536,7 +536,7 @@ impl Commands {
                             async move {
                                 let tag = format!("cicada-{}", job.image);
 
-                                let mut child = if buildkit_expiremental {
+                                let mut child = if buildkit_experimental {
                                     let mut buildctl = Command::new("buildctl")
                                         // .arg("--debug")
                                         .arg("build")

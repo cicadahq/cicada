@@ -211,12 +211,12 @@ impl Step {
         // If the step has a working directory, we need to set it
         let working_directory = if let Some(working_directory) = &self.working_directory {
             // This is relative to the parent working directory if it is not absolute
-            let working_directory = if working_directory.is_absolute() {
+
+            if working_directory.is_absolute() {
                 working_directory.to_owned()
             } else {
                 parent_working_directory.join(working_directory)
-            };
-            working_directory
+            }
         } else {
             parent_working_directory.to_owned()
         };
@@ -412,7 +412,7 @@ impl Job {
                 root,
                 &self.cache_directories,
                 &working_directory,
-                &*env,
+                &env,
                 job_index,
                 step_index,
             ));
