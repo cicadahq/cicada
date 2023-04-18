@@ -1,4 +1,4 @@
-import { Job, Pipeline } from "https://deno.land/x/cicada/lib.ts";
+import { Job, Pipeline } from "https://deno.land/x/cicada/mod.ts";
 
 // Build a job for each Node.js version
 const jobs: Job[] = ["14", "16", "18"].map((nodeVersion) =>

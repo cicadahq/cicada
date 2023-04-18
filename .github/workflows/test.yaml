@@ -24,7 +24,7 @@ jobs:
       - name: Lint Deno Module
         run: deno lint
       - name: Check Deno Module
-        run: deno check lib.ts
+        run: deno check mod.ts
 
   test-rust:
     runs-on: ubuntu-latest

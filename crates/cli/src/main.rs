@@ -42,7 +42,7 @@ use crate::{
     job::{OnFail, Pipeline},
 };
 
-// Transform from https://deno.land/x/cicada/lib.ts to https://deno.land/x/cicada@vX.Y.X/lib.ts
+// Transform from https://deno.land/x/cicada/mod.ts to https://deno.land/x/cicada@vX.Y.X/mod.ts
 static DENO_LAND_REGEX: Lazy<regex::Regex> =
     Lazy::new(|| regex::Regex::new(r#"deno.land/x/cicada/"#).unwrap());
 
