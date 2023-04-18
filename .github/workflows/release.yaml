@@ -63,6 +63,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libssl-dev musl-tools protobuf-compiler
 
+      - name: Install MacOS dependencies
+        if: matrix.target == 'x86_64-apple-darwin' || matrix.target == 'aarch64-apple-darwin'
+        run: |
+          brew install openssl protobuf
+
+      - name: Install Windows dependencies
+        if: matrix.target == 'x86_64-pc-windows-msvc'
+        run: |
+          choco install openssl protobuf
+
       - uses: Swatinem/rust-cache@v2
 
       - uses: actions-rs/cargo@v1
