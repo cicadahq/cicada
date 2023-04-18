@@ -36,7 +36,7 @@ pub enum TrackEvent {
     },
     PipelineExecuted {
         pipeline_name: String,
-        pipeline_length: Option<u64>,
+        pipeline_length: Option<usize>,
     },
 }
 

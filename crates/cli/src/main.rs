@@ -379,10 +379,9 @@ impl Commands {
                 #[cfg(feature = "telemetry")]
                 let telem_join = segment_enabled().then(|| {
                     let pipeline_name = pipeline_file_name.to_string_lossy().to_string();
-                    let pipeline_length = std::fs::File::open(&pipeline)
-                        .map(|f| f.metadata().map(|m| m.len()).ok())
-                        .ok()
-                        .flatten();
+                    let pipeline_length = std::fs::read_to_string(&pipeline)
+                        .map(|f| f.lines().count())
+                        .ok();
 
                     tokio::spawn(
                         TrackEvent::PipelineExecuted {
@@ -513,6 +512,7 @@ impl Commands {
                     .collect();
                 let graph = topological_sort(&invert_graph(&nodes))?;
 
+                let mut exit_code = 0;
                 'run_groups: for run_group in graph {
                     match futures::future::try_join_all(run_group.into_iter().map(|job| {
                         let (job_index, job) = jobs.remove(&job).unwrap();
@@ -669,6 +669,7 @@ impl Commands {
                                         }
                                         Some(OnFail::Stop) | None if !exit_status.success() => {
                                             error!("Build failed for {long_name} with status {exit_status}");
+                                            exit_code = 1;
                                             break 'run_groups;
                                         }
                                         _ => {
@@ -677,6 +678,7 @@ impl Commands {
                                     },
                                     Err(err) => {
                                         error!("{err}");
+                                        exit_code = 1;
                                         break 'run_groups;
                                     }
                                 }
@@ -690,6 +692,8 @@ impl Commands {
                 if let Some(join) = telem_join {
                     join.await.ok();
                 }
+
+                std::process::exit(exit_code)
             }
             Commands::Step { workflow, step } => {
                 run_deno(
