@@ -1,3 +1,5 @@
+#!/usr/bin/env -S deno run -A
+
 import { extname, join } from "https://deno.land/std@0.182.0/path/mod.ts";
 
 for (const examples of Deno.readDirSync(".")) {
