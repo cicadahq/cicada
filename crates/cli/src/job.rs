@@ -217,9 +217,7 @@ impl Step {
             (Some(name), StepRun::DenoFunction) => {
                 exec = exec.with_custom_name(format!("{name} ({step_index})"))
             }
-            (None, StepRun::Command { command }) => {
-                exec = exec.with_custom_name(format!("{command}"))
-            }
+            (None, StepRun::Command { command }) => exec = exec.with_custom_name(command.clone()),
             (None, StepRun::DenoFunction) => {
                 exec = exec.with_custom_name(format!("Step {step_index}"))
             }
