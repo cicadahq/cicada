@@ -528,7 +528,7 @@ impl Commands {
 
                         let gh_repo = gh_repo.clone();
                         let pipeline_file_name = pipeline_file_name.to_os_string();
-                        let project_dir = project_dir.to_path_buf();
+                        let project_directory = project_dir.to_path_buf();
                         let all_secrets = all_secrets.clone();
                         let cicada_bin_tag = cicada_bin_tag.clone();
 
@@ -541,7 +541,7 @@ impl Commands {
                                         // .arg("--debug")
                                         .arg("build")
                                         .arg("--local")
-                                        .arg(format!("local={}", project_dir.display()))
+                                        .arg(format!("local={}", project_directory.display()))
                                         .arg("--progress")
                                         .arg("plain")
                                         .env("BUILDKIT_HOST", "docker-container://buildkitd")
@@ -552,6 +552,7 @@ impl Commands {
 
                                     let llb_vec = job.to_llb(
                                         pipeline_file_name.to_str().unwrap(),
+                                        &project_directory,
                                         &gh_repo,
                                         job_index,
                                     );
@@ -568,7 +569,7 @@ impl Commands {
                                         "-t".into(),
                                         tag,
                                         "--build-context".into(),
-                                        format!("local={}", project_dir.to_str().unwrap()),
+                                        format!("local={}", project_directory.to_str().unwrap()),
                                         "--progress".into(),
                                         "plain".into(),
                                     ];
