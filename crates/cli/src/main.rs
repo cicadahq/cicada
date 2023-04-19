@@ -799,7 +799,7 @@ impl Commands {
                     &pipeline_path,
                     &*TEMPLATES[dialoguer::Select::new()
                         .with_prompt("Select a template")
-                        .items(&["None", "Add Secret"])
+                        .items(&["Default", "Add Secret"])
                         .interact()?],
                 )
                 .await?;
