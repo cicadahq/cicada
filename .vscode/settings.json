@@ -2,7 +2,7 @@
   // Deno
   "deno.enable": true,
   "[typescript]": {
-    "editor.defaultFormatter": "denoland.vscode-deno"
+    "editor.defaultFormatter": "vscode.typescript-language-features"
   },
   "[markdown]": {
     "editor.defaultFormatter": "denoland.vscode-deno"

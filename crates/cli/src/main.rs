@@ -58,10 +58,13 @@ static LOCAL_CLI_SCRIPT: Lazy<String> =
     Lazy::new(|| replace_with_version(include_str!("../scripts/local-cli.ts")));
 static RUNNER_CLI_SCRIPT: Lazy<String> =
     Lazy::new(|| replace_with_version(include_str!("../scripts/runner-cli.ts")));
-static TEMPLATES: Lazy<[String; 1]> = Lazy::new(|| {
-    [replace_with_version(include_str!(
-        "../scripts/template-default.ts"
-    ))]
+
+static TEMPLATES: Lazy<Vec<String>> = Lazy::new(|| {
+    vec![
+        replace_with_version(include_str!("../scripts/template-default.ts")),
+        replace_with_version(include_str!("../scripts/template-node.ts")),
+        replace_with_version(include_str!("../scripts/template-rust.ts")),
+    ]
 });
 
 async fn run_deno<I, S>(script: &str, args: I) -> Result<()>
@@ -785,7 +788,7 @@ impl Commands {
                         .with_prompt("What should we call your pipeline")
                         .interact_text()?,
                 }
-                .replace(['\\', '/', ' '], "-");
+                .replace(['\\', '/', '.', ' '], "-");
 
                 let pipeline_path = cicada_dir.join(format!("{pipeline_name}.ts"));
 
@@ -798,7 +801,8 @@ impl Commands {
                     &pipeline_path,
                     &*TEMPLATES[dialoguer::Select::new()
                         .with_prompt("Select a template")
-                        .items(&["Default"])
+                        // TODO: add more templates, contribs welcome :D
+                        .items(&["Default", "Node", "Rust"])
                         .interact()?],
                 )
                 .await?;
