@@ -209,6 +209,22 @@ impl Step {
         }
         .with_mount(root_mount);
 
+        // Custom name for the step
+        match (&self.name, &self.run) {
+            (Some(name), StepRun::Command { command }) => {
+                exec = exec.with_custom_name(format!("{name} ({step_index}): {command}"))
+            }
+            (Some(name), StepRun::DenoFunction) => {
+                exec = exec.with_custom_name(format!("{name} ({step_index})"))
+            }
+            (None, StepRun::Command { command }) => {
+                exec = exec.with_custom_name(format!("{command}"))
+            }
+            (None, StepRun::DenoFunction) => {
+                exec = exec.with_custom_name(format!("Step {step_index}"))
+            }
+        }
+
         // If the step has a working directory, we need to set it
         let working_directory = if let Some(working_directory) = &self.working_directory {
             // This is relative to the parent working directory if it is not absolute
@@ -409,19 +425,22 @@ impl Job {
             env!("CARGO_PKG_VERSION")
         ));
 
-        let deno_cp = Exec::shlex("cp /deno/deno /usr/local/bin/deno")
+        let deno_cp = Exec::shlex("cp /deno-mnt/deno /usr/local/bin/deno")
             .with_mount(Mount::layer(image.output(), "/", 0))
-            .with_mount(Mount::layer_readonly(deno_image.output(), "/deno"));
+            .with_mount(Mount::layer_readonly(deno_image.output(), "/deno-mnt"))
+            .with_custom_name("Install Deno");
 
-        let cicada_cp = Exec::shlex("cp /cicada/cicada /usr/local/bin/cicada")
+        let cicada_cp = Exec::shlex("cp /cicada-mnt/cicada /usr/local/bin/cicada")
             .with_mount(Mount::layer(deno_cp.output(0), "/", 0))
-            .with_mount(Mount::layer_readonly(cicada_image.output(), "/cicada"));
+            .with_mount(Mount::layer_readonly(cicada_image.output(), "/cicada-mnt"))
+            .with_custom_name("Install Cicada");
 
         let local_cp = Exec::shlex(format!(
             "/bin/sh -c 'mkdir -p {working_directory} && cp -r /local/* {working_directory}'"
         ))
         .with_mount(Mount::layer(cicada_cp.output(0), "/", 0))
-        .with_mount(Mount::layer_readonly(local.output(), "/local"));
+        .with_mount(Mount::layer_readonly(local.output(), "/local"))
+        .with_custom_name("Copy local files");
 
         let mut env = vec![
             "CI=1".into(),
