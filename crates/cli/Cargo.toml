@@ -33,6 +33,7 @@ clap = { version = "4.1.13", features = [
     "cargo"
 ] }
 clap_complete = "4.2.0"
+dialoguer = "0.10.4"
 dirs = "5.0.0"
 dotenvy = "0.15.7"
 futures = "0.3.28"

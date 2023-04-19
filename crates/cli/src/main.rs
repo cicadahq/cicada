@@ -58,8 +58,14 @@ static LOCAL_CLI_SCRIPT: Lazy<String> =
     Lazy::new(|| replace_with_version(include_str!("../scripts/local-cli.ts")));
 static RUNNER_CLI_SCRIPT: Lazy<String> =
     Lazy::new(|| replace_with_version(include_str!("../scripts/runner-cli.ts")));
-static DEFAULT_PIPELINE: Lazy<String> =
-    Lazy::new(|| replace_with_version(include_str!("../scripts/default-pipeline.ts")));
+
+static TEMPLATES: Lazy<Vec<String>> = Lazy::new(|| {
+    vec![
+        replace_with_version(include_str!("../scripts/template-default.ts")),
+        replace_with_version(include_str!("../scripts/template-node.ts")),
+        replace_with_version(include_str!("../scripts/template-rust.ts")),
+    ]
+});
 
 async fn run_deno<I, S>(script: &str, args: I) -> Result<()>
 where
@@ -190,7 +196,7 @@ async fn runtime_checks(oci: &OciBackend) {
             }
         }
         Err(_) => {
-            error!("Cicada requires Docker to run. Please install it using one of the methods on install it from https://docs.docker.com/engine/install");
+            error!("Cicada requires Docker to run. Please install it using one of the methods or install it from https://docs.docker.com/engine/install");
             std::process::exit(1);
         }
     }
@@ -776,7 +782,13 @@ impl Commands {
                     std::fs::create_dir(&cicada_dir)?;
                 }
 
-                let pipeline_name = pipeline.as_deref().unwrap_or("pipeline");
+                let pipeline_name = match pipeline {
+                    Some(pipeline) => pipeline,
+                    None => dialoguer::Input::new()
+                        .with_prompt("What should we call your pipeline")
+                        .interact_text()?,
+                }
+                .replace(['\\', '/', '.', ' '], "-");
 
                 let pipeline_path = cicada_dir.join(format!("{pipeline_name}.ts"));
 
@@ -785,7 +797,15 @@ impl Commands {
                     std::process::exit(1);
                 }
 
-                tokio::fs::write(&pipeline_path, &*DEFAULT_PIPELINE).await?;
+                tokio::fs::write(
+                    &pipeline_path,
+                    &*TEMPLATES[dialoguer::Select::new()
+                        .with_prompt("Select a template")
+                        // TODO: add more templates, contribs welcome :D
+                        .items(&["Default", "Node", "Rust"])
+                        .interact()?],
+                )
+                .await?;
 
                 // Cache deno dependencies
                 if let Ok(mut out) = Command::new("deno")
@@ -796,7 +816,7 @@ impl Commands {
                 }
 
                 info!(
-                    "\n{} Initialized Cicada pipeline: {}\n{} Run it with: {}\n",
+                    "\n{} Initialized Cicada pipeline: {}\n{} Run it with: {}\n ",
                     " ◥◣ ▲ ◢◤ ".fg_rgb::<145, 209, 249>(),
                     pipeline_name.bold(),
                     "  ◸ ▽ ◹  ".fg_rgb::<145, 209, 249>(),
@@ -823,7 +843,7 @@ impl Commands {
                     std::process::exit(1);
                 }
 
-                tokio::fs::write(&pipeline_path, &*DEFAULT_PIPELINE).await?;
+                tokio::fs::write(&pipeline_path, &*TEMPLATES[0]).await?;
 
                 info!(
                     "\n{} Initialized Cicada pipeline: {}\n{} Run it with: {}\n",
