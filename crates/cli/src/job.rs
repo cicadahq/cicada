@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, path::Path, sync::Arc};
 
 use camino::Utf8PathBuf;
 use serde::{Deserialize, Serialize};
@@ -357,6 +357,7 @@ impl Job {
     pub fn to_llb(
         &self,
         module_name: &str,
+        project_directory: &Path,
         github: &Option<Github>,
         job_index: usize,
         // bootstrap: bool,
@@ -368,7 +369,26 @@ impl Job {
             .clone()
             .unwrap_or_else(|| Utf8PathBuf::from("/app"));
 
-        let local: Local = Local::new("local".into());
+        let mut local: Local = Local::new("local".into());
+
+        // Try to load excludes from `.cicadaignore`, `.containerignore`, `.dockerignore` in that order
+        for ignore_file in &[".cicadaignore", ".containerignore", ".dockerignore"] {
+            let ignore_file = project_directory.join(ignore_file);
+            if ignore_file.exists() {
+                // Read the file, strip comments and empty lines
+                let content = std::fs::read_to_string(ignore_file).unwrap();
+                let content = content
+                    .lines()
+                    .filter(|line| !line.trim_start().starts_with('#'))
+                    .filter(|line| !line.is_empty())
+                    .map(|line| line.trim().to_owned())
+                    .collect::<Vec<_>>();
+
+                local = local.with_excludes(content);
+
+                break;
+            }
+        }
 
         let image = Image::new(&self.image).with_custom_name(self.name.clone().unwrap());
 
