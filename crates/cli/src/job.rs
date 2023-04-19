@@ -374,23 +374,20 @@ impl Job {
         // Try to load excludes from `.cicadaignore`, `.containerignore`, `.dockerignore` in that order
         for ignore_file in &[".cicadaignore", ".containerignore", ".dockerignore"] {
             let ignore_file = project_directory.join(ignore_file);
-            if ignore_file.exists() {
+            if ignore_file.is_file() {
                 // Read the file, strip comments and empty lines
-                let content = std::fs::read_to_string(ignore_file).unwrap();
-                let content = content
-                    .lines()
-                    .filter(|line| !line.trim_start().starts_with('#'))
-                    .filter(|line| !line.is_empty())
-                    .map(|line| line.trim().to_owned())
-                    .collect::<Vec<_>>();
+                let file = std::fs::File::open(ignore_file).unwrap();
+                let list = buildkit_rs::ignore::read_ignore_to_list(file).unwrap();
 
-                local = local.with_excludes(content);
+                local = dbg!(local.with_excludes(list));
 
                 break;
             }
         }
 
-        let image = Image::new(&self.image).with_custom_name(self.name.clone().unwrap());
+        let image = Image::new(&self.image)
+            .with_custom_name(self.name.clone().unwrap())
+            .with_resolve_mode(ResolveMode::Local);
 
         let deno_image = Image::new(format!("docker.io/denoland/deno:bin-{DENO_VERSION}"));
         let cicada_image = Image::new(format!(
