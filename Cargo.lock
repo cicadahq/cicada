@@ -211,9 +211,10 @@ dependencies = [
 [[package]]
 name = "buildkit-rs"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#2784d0e622963fae1d0f83bf4db8dc1b307828f1"
+source = "git+https://github.com/cicadahq/buildkit-rs.git#fcd1826057d39db22031a968d67c5783d061dcc8"
 dependencies = [
  "buildkit-rs-frontend",
+ "buildkit-rs-ignore",
  "buildkit-rs-llb",
  "buildkit-rs-proto",
  "buildkit-rs-reference",
@@ -223,15 +224,30 @@ dependencies = [
 [[package]]
 name = "buildkit-rs-frontend"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#2784d0e622963fae1d0f83bf4db8dc1b307828f1"
+source = "git+https://github.com/cicadahq/buildkit-rs.git#fcd1826057d39db22031a968d67c5783d061dcc8"
 dependencies = [
+ "buildkit-rs-llb",
+ "buildkit-rs-proto",
+ "thiserror",
+ "tokio",
+ "tokio-util",
  "tonic",
+ "tower",
+]
+
+[[package]]
+name = "buildkit-rs-ignore"
+version = "0.1.0"
+source = "git+https://github.com/cicadahq/buildkit-rs.git#fcd1826057d39db22031a968d67c5783d061dcc8"
+dependencies = [
+ "path-clean",
+ "thiserror",
 ]
 
 [[package]]
 name = "buildkit-rs-llb"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#2784d0e622963fae1d0f83bf4db8dc1b307828f1"
+source = "git+https://github.com/cicadahq/buildkit-rs.git#fcd1826057d39db22031a968d67c5783d061dcc8"
 dependencies = [
  "buildkit-rs-proto",
  "buildkit-rs-reference",
@@ -245,7 +261,7 @@ dependencies = [
 [[package]]
 name = "buildkit-rs-proto"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#2784d0e622963fae1d0f83bf4db8dc1b307828f1"
+source = "git+https://github.com/cicadahq/buildkit-rs.git#fcd1826057d39db22031a968d67c5783d061dcc8"
 dependencies = [
  "prost",
  "prost-build",
@@ -257,7 +273,7 @@ dependencies = [
 [[package]]
 name = "buildkit-rs-reference"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#2784d0e622963fae1d0f83bf4db8dc1b307828f1"
+source = "git+https://github.com/cicadahq/buildkit-rs.git#fcd1826057d39db22031a968d67c5783d061dcc8"
 dependencies = [
  "once_cell",
  "regex",
@@ -267,7 +283,7 @@ dependencies = [
 [[package]]
 name = "buildkit-rs-util"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#2784d0e622963fae1d0f83bf4db8dc1b307828f1"
+source = "git+https://github.com/cicadahq/buildkit-rs.git#fcd1826057d39db22031a968d67c5783d061dcc8"
 
 [[package]]
 name = "bumpalo"
@@ -1165,6 +1181,12 @@ dependencies = [
  "smallvec",
  "windows-sys 0.45.0",
 ]
+
+[[package]]
+name = "path-clean"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "17359afc20d7ab31fdb42bb844c8b3bb1dabd7dcf7e68428492da7f16966fcef"
 
 [[package]]
 name = "percent-encoding"
@@ -2079,6 +2101,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ce8c33a8d48bd45d624a6e523445fd21ec13d3653cd51f681abf67418f54eb8"
 dependencies = [
  "cfg-if",
+ "log",
  "pin-project-lite",
  "tracing-attributes",
  "tracing-core",
