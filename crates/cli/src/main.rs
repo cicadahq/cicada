@@ -18,7 +18,7 @@ use once_cell::sync::Lazy;
 use std::{
     ffi::OsStr,
     path::{Path, PathBuf},
-    process::Stdio,
+    process::{ExitCode, Stdio},
 };
 #[cfg(feature = "telemetry")]
 use telemetry::{segment::TrackEvent, segment_enabled, sentry::sentry_init};
@@ -818,18 +818,16 @@ impl Commands {
 
                 // Check if cicada is initialized
                 let Ok(dir) = resolve_cicada_dir() else {
-                    error!(
+                    anyhow::bail!(
                         "Cicada is not initialized in this directory. Run {} to initialize it.",
                         "cicada init".bold()
                     );
-                    std::process::exit(1);
                 };
 
                 let pipeline_path = dir.join(format!("{pipeline}.ts"));
 
                 if pipeline_path.exists() {
-                    error!("Pipeline already exists: {}", pipeline_path.display());
-                    std::process::exit(1);
+                    anyhow::bail!("Pipeline already exists: {}", pipeline_path.display());
                 }
 
                 tokio::fs::write(&pipeline_path, &*DEFAULT_PIPELINE).await?;
@@ -864,8 +862,7 @@ impl Commands {
             }
             #[cfg(not(feature = "self-update"))]
             Commands::Update => {
-                error!("self update is not enabled in this build");
-                std::process::exit(1);
+                anyhow::bail!("self update is not enabled in this build");
             }
             Commands::Completions { shell } => {
                 use clap::CommandFactory;
@@ -917,12 +914,12 @@ impl Commands {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> ExitCode {
     #[cfg(feature = "telemetry")]
     let _sentry_guard = sentry_init();
     if let Err(err) = logging_init() {
         eprintln!("Failed to init logger: {err:#?}");
-        std::process::exit(1);
+        return ExitCode::FAILURE;
     }
 
     if std::env::var_os("CICADA_FORCE_COLOR").is_some() {
@@ -949,12 +946,15 @@ async fn main() {
         join.await.ok();
     }
 
-    if let Err(err) = res {
-        if std::env::var_os("CICADA_DEBUG").is_some() {
-            error!("{err:#?}");
-        } else {
-            error!("{err}");
+    match res {
+        Ok(_) => ExitCode::SUCCESS,
+        Err(err) => {
+            if std::env::var_os("CICADA_DEBUG").is_some() {
+                error!("{err:#?}");
+            } else {
+                error!("{err}");
+            }
+            ExitCode::FAILURE
         }
-        std::process::exit(1);
     }
 }
