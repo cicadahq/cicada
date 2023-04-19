@@ -224,7 +224,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Download checksums
-        uses: actions/download-artifact@v2.0.8
+        uses: actions/download-artifact@v3.0.2
         with:
           name: cicada-x86_64-unknown-linux-gnu.tar.gz
       - name: Generate PKGBUILD
