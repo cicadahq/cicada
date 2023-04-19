@@ -6,7 +6,7 @@ pkgrel="1"
 pkgdesc="Write CI/CD Pipelines in TypeScript"
 arch=("x86_64")
 url="https://cicada.build"
-license=("MIT" "Apache")
+license=("MIT")
 depends=()
 provides=("cicada")
 conflicts=("cicada")
@@ -16,4 +16,5 @@ sha256sums=('${sha256sum}')
 package() {
     mkdir -p "$pkgdir/usr/bin"
     install -m755 cicada "$pkgdir/usr/bin"
+    install LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
 }
