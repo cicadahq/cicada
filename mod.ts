@@ -1,3 +1,27 @@
+/**
+ * mod.ts
+ *
+ * This is the main entry point for the cicada library.
+ *
+ * Get started with a simple pipeline:
+ *
+ * ```ts
+ * import { Job, Pipeline } from "https://deno.land/x/cicada/mod.ts";
+ *
+ * const job = new Job({
+ *   name: "Hello World",
+ *   image: "node:18",
+ *   steps: [
+ *     "echo Hello World",
+ *   ],
+ * });
+ *
+ * export default new Pipeline([job]);
+ * ```
+ *
+ * For more information, see the [Cicada documentation](https://cicada.run/docs).
+ */
+
 import { resolve } from "https://deno.land/x/cicada/deps.ts";
 import { DockerImages } from "https://deno.land/x/cicada/types/dockerImages.ts";
 
