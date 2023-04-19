@@ -5,7 +5,7 @@ import {
   Step,
   StepFn,
   Trigger,
-} from "https://deno.land/x/cicada/lib.ts";
+} from "https://deno.land/x/cicada/mod.ts";
 
 const mapCache = (
   cache: FilePath | CacheDirectoryOptions,

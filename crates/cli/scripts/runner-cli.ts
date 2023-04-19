@@ -1,4 +1,4 @@
-import { Pipeline } from "https://deno.land/x/cicada/lib.ts";
+import { Pipeline } from "https://deno.land/x/cicada/mod.ts";
 
 const moduleFile = Deno.env.get("CICADA_PIPELINE_FILE");
 if (!moduleFile) {

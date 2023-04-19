@@ -24,20 +24,27 @@ jobs:
       - name: Lint Deno Module
         run: deno lint
       - name: Check Deno Module
-        run: deno check lib.ts
+        run: deno check mod.ts
 
   test-rust:
     runs-on: ubuntu-latest
     steps:
       - name: Git Checkout
         uses: actions/checkout@v3
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libssl-dev musl-tools protobuf-compiler
+
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           override: true
+
       - name: Cargo Fmt
         run: cargo fmt -- --check
-        
+
       - uses: Swatinem/rust-cache@v2
 
       # Default features
@@ -78,8 +85,8 @@ jobs:
     name: Spell Check with Typos
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout Actions Repository
-      uses: actions/checkout@v3
+      - name: Checkout Actions Repository
+        uses: actions/checkout@v3
 
-    - name: Check spelling
-      uses: crate-ci/typos@master
+      - name: Check spelling
+        uses: crate-ci/typos@master

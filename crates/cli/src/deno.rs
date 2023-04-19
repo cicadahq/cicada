@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use semver::{Version, VersionReq};
 use tokio::process::Command;
 
-pub const DENO_VERSION: &str = "1.32.4";
+pub const DENO_VERSION: &str = "1.32.5";
 pub const DENO_VERSION_REQ: &str = ">=1.32";
 
 pub fn deno_version_req() -> VersionReq {
@@ -142,11 +142,11 @@ pub async fn deno_exe() -> anyhow::Result<PathBuf> {
 }
 
 #[cfg(test)]
+#[cfg(feature = "managed-deno")]
 mod tests {
     use super::*;
 
     #[tokio::test]
-    #[cfg(feature = "managed-deno")]
     async fn test_download_deno() {
         // Remove the managed deno dir if it exists
         let managed_deno_dir = managed_deno_dir().unwrap();
@@ -178,7 +178,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "managed-deno")]
     fn deno_version_assert() {
         deno_version_req();
     }
