@@ -313,6 +313,8 @@ enum Commands {
         #[arg(long, default_value = "docker", env = "CICADA_OCI_BACKEND")]
         oci_backend: OciBackend,
     },
+    #[command(hide = true)]
+    Debug { pipeline: PathBuf, job: usize },
 }
 
 impl Commands {
@@ -398,7 +400,7 @@ impl Commands {
                     )
                 });
 
-                let project_dir = pipeline.parent().unwrap().parent().unwrap();
+                let project_directory = pipeline.parent().unwrap().parent().unwrap();
                 let pipeline_url = Url::from_file_path(&pipeline)
                     .map_err(|_| anyhow::anyhow!("Unable to convert pipeline path to URL"))?;
 
@@ -416,7 +418,7 @@ impl Commands {
                             pipeline_url.to_string().as_ref(),
                             tmp_file.path().to_str().unwrap(),
                         ],
-                        project_dir,
+                        project_directory,
                         tmp_file.path(),
                     )
                     .await?;
@@ -528,14 +530,12 @@ impl Commands {
 
                         let gh_repo = gh_repo.clone();
                         let pipeline_file_name = pipeline_file_name.to_os_string();
-                        let project_directory = project_dir.to_path_buf();
+                        let project_directory = project_directory.to_path_buf();
                         let all_secrets = all_secrets.clone();
                         let cicada_bin_tag = cicada_bin_tag.clone();
 
                         tokio::spawn(
                             async move {
-                                let tag = format!("cicada-{}", job.image);
-
                                 let mut child = if buildkit_experimental {
                                     let mut buildctl = Command::new("buildctl")
                                         // .arg("--debug")
@@ -544,7 +544,13 @@ impl Commands {
                                         .arg(format!("local={}", project_directory.display()))
                                         .arg("--progress")
                                         .arg("plain")
-                                        .env("BUILDKIT_HOST", "docker-container://buildkitd")
+                                        .env(
+                                            "BUILDKIT_HOST",
+                                            format!(
+                                                "{}-container://buildkitd",
+                                                oci_backend.as_str()
+                                            ),
+                                        )
                                         .stdin(Stdio::piped())
                                         .stdout(Stdio::piped())
                                         .stderr(Stdio::piped())
@@ -563,6 +569,8 @@ impl Commands {
 
                                     buildctl
                                 } else {
+                                    let tag = format!("cicada-{}", job.image);
+
                                     let mut args: Vec<String> = vec![
                                         "buildx".into(),
                                         "build".into(),
@@ -873,6 +881,7 @@ impl Commands {
                 runtime_checks(&oci_backend).await;
                 info!("\nAll checks passed!");
             }
+            Commands::Debug { pipeline, job } => todo!("{pipeline:?} {job}"),
         }
 
         Ok(())
@@ -888,6 +897,7 @@ impl Commands {
             Commands::Update => "update",
             Commands::Completions { .. } => "completions",
             Commands::Doctor { .. } => "doctor",
+            Commands::Debug { .. } => "debug",
         }
     }
 }
