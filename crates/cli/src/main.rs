@@ -900,6 +900,20 @@ impl Commands {
             Commands::Debug { .. } => "debug",
         }
     }
+
+    #[cfg(feature = "telemetry")]
+    fn track(&self) -> bool {
+        match self {
+            Commands::Run { .. } => true,
+            Commands::Step { .. } => false,
+            Commands::Init { .. } => true,
+            Commands::New { .. } => true,
+            Commands::Update => true,
+            Commands::Completions { .. } => false,
+            Commands::Doctor { .. } => true,
+            Commands::Debug { .. } => false,
+        }
+    }
 }
 
 #[tokio::main]
@@ -918,7 +932,7 @@ async fn main() {
     let command = Commands::parse();
 
     #[cfg(feature = "telemetry")]
-    let telem_join = segment_enabled().then(|| {
+    let telem_join = (command.track() && segment_enabled()).then(|| {
         let subcommand = command.subcommand().to_owned();
         tokio::spawn(
             TrackEvent::SubcommandExecuted {
