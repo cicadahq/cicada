@@ -58,11 +58,10 @@ static LOCAL_CLI_SCRIPT: Lazy<String> =
     Lazy::new(|| replace_with_version(include_str!("../scripts/local-cli.ts")));
 static RUNNER_CLI_SCRIPT: Lazy<String> =
     Lazy::new(|| replace_with_version(include_str!("../scripts/runner-cli.ts")));
-static TEMPLATES: Lazy<[String; 2]> = Lazy::new(|| {
-    [
-        replace_with_version(include_str!("../scripts/template-none.ts")),
-        replace_with_version(include_str!("../scripts/template-secret.ts")),
-    ]
+static TEMPLATES: Lazy<[String; 1]> = Lazy::new(|| {
+    [replace_with_version(include_str!(
+        "../scripts/template-default.ts"
+    ))]
 });
 
 async fn run_deno<I, S>(script: &str, args: I) -> Result<()>
@@ -786,7 +785,7 @@ impl Commands {
                         .with_prompt("What should we call your pipeline")
                         .interact_text()?,
                 }
-                .replace(' ', "-");
+                .replace(['\\', '/', ' '], "-");
 
                 let pipeline_path = cicada_dir.join(format!("{pipeline_name}.ts"));
 
