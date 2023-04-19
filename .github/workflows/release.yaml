@@ -216,3 +216,32 @@ jobs:
           file: ./docker/bin.Dockerfile
           push: true
           tags: cicadahq/cicada-bin:${{ steps.version.outputs.no_prefix_version }},cicadahq/cicada-bin:latest
+
+  aur-publish:
+    name: Build & publish to AUR
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Download checksums
+        uses: actions/download-artifact@v2.0.8
+        with:
+          name: cicada-x86_64-unknown-linux-gnu.tar.gz
+      - name: Generate PKGBUILD
+        run: |
+          mkdir -p aur/cicada-bin
+          export tag=${GITHUB_REF#refs/*/}
+          export version=${tag:1}
+          export sha256sum=$(sha256sum cicada-x86_64-unknown-linux-gnu.tar.gz | awk '{print $1}')
+          envsubst '${version},${sha256sum}' < aur/PKGBUILD > aur/cicada-bin/PKGBUILD
+          cat aur/cicada-bin/PKGBUILD
+      - name: Publish flyctl-bin to the AUR
+        uses: superfly/aur-releaser@ba29a0a809d7221713a104f9c9a23c34ee5b0742
+        with:
+          pkgname: flyctl-bin
+          pkgbuild: ./aur/flyctl-bin/PKGBUILD
+          commit_username: Grant
+          commit_email: grant@fig.io
+          ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          commit_message: ${{ github.event.ref }}
+          force_push: "true"
