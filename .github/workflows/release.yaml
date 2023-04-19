@@ -180,7 +180,7 @@ jobs:
 
           cd packages/cicada
           echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
-          npm version $version
+          npm version ${version#v}
           npm publish
 
   docker-release:
