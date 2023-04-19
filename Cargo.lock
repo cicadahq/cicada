@@ -211,7 +211,7 @@ dependencies = [
 [[package]]
 name = "buildkit-rs"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#f90bcbf383752f7ab359bd1fab986e2482bc634f"
+source = "git+https://github.com/cicadahq/buildkit-rs.git#c34f57e4415026939867ec6a72ae9f11c96f06eb"
 dependencies = [
  "buildkit-rs-frontend",
  "buildkit-rs-ignore",
@@ -224,7 +224,7 @@ dependencies = [
 [[package]]
 name = "buildkit-rs-frontend"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#f90bcbf383752f7ab359bd1fab986e2482bc634f"
+source = "git+https://github.com/cicadahq/buildkit-rs.git#c34f57e4415026939867ec6a72ae9f11c96f06eb"
 dependencies = [
  "tonic",
 ]
@@ -232,7 +232,7 @@ dependencies = [
 [[package]]
 name = "buildkit-rs-ignore"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#f90bcbf383752f7ab359bd1fab986e2482bc634f"
+source = "git+https://github.com/cicadahq/buildkit-rs.git#c34f57e4415026939867ec6a72ae9f11c96f06eb"
 dependencies = [
  "path-clean",
  "thiserror",
@@ -241,7 +241,7 @@ dependencies = [
 [[package]]
 name = "buildkit-rs-llb"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#f90bcbf383752f7ab359bd1fab986e2482bc634f"
+source = "git+https://github.com/cicadahq/buildkit-rs.git#c34f57e4415026939867ec6a72ae9f11c96f06eb"
 dependencies = [
  "buildkit-rs-proto",
  "buildkit-rs-reference",
@@ -255,7 +255,7 @@ dependencies = [
 [[package]]
 name = "buildkit-rs-proto"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#f90bcbf383752f7ab359bd1fab986e2482bc634f"
+source = "git+https://github.com/cicadahq/buildkit-rs.git#c34f57e4415026939867ec6a72ae9f11c96f06eb"
 dependencies = [
  "prost",
  "prost-build",
@@ -267,7 +267,7 @@ dependencies = [
 [[package]]
 name = "buildkit-rs-reference"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#f90bcbf383752f7ab359bd1fab986e2482bc634f"
+source = "git+https://github.com/cicadahq/buildkit-rs.git#c34f57e4415026939867ec6a72ae9f11c96f06eb"
 dependencies = [
  "once_cell",
  "regex",
@@ -277,7 +277,7 @@ dependencies = [
 [[package]]
 name = "buildkit-rs-util"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#f90bcbf383752f7ab359bd1fab986e2482bc634f"
+source = "git+https://github.com/cicadahq/buildkit-rs.git#c34f57e4415026939867ec6a72ae9f11c96f06eb"
 
 [[package]]
 name = "bumpalo"

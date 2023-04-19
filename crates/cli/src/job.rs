@@ -2,6 +2,7 @@ use std::{collections::HashMap, path::Path, sync::Arc};
 
 use camino::Utf8PathBuf;
 use serde::{Deserialize, Serialize};
+use tracing::error;
 
 use crate::{deno::DENO_VERSION, git::Github};
 
@@ -372,12 +373,25 @@ impl Job {
         let mut local: Local = Local::new("local".into());
 
         // Try to load excludes from `.cicadaignore`, `.containerignore`, `.dockerignore` in that order
-        for ignore_file in &[".cicadaignore", ".containerignore", ".dockerignore"] {
-            let ignore_file = project_directory.join(ignore_file);
-            if ignore_file.is_file() {
+        for ignore_name in &[".cicadaignore", ".containerignore", ".dockerignore"] {
+            let ignore_path = project_directory.join(ignore_name);
+            if ignore_path.is_file() {
                 // Read the file, strip comments and empty lines
-                let file = std::fs::File::open(ignore_file).unwrap();
-                let list = buildkit_rs::ignore::read_ignore_to_list(file).unwrap();
+                let ignore_file = match std::fs::File::open(ignore_path) {
+                    Ok(ignore_file) => ignore_file,
+                    Err(err) => {
+                        error!(%err, "Failed to open ignore file {ignore_name}: {err}");
+                        break;
+                    }
+                };
+
+                let list = match buildkit_rs::ignore::read_ignore_to_list(ignore_file) {
+                    Ok(list) => list,
+                    Err(err) => {
+                        error!(%err, "Failed to read ignore file {ignore_name}: {err}");
+                        break;
+                    }
+                };
 
                 local = dbg!(local.with_excludes(list));
 
