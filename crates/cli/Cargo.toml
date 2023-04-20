@@ -17,8 +17,6 @@ managed-bins = ["dep:zip", "dep:tar", "dep:flate2"]
 telemetry = ["dep:sentry"]
 # enables self updating functionality
 self-update = ["dep:self_update"]
-# enables experimental buildkit integrations
-buildkit-experimental = []
 
 [dependencies]
 ahash = "0.8.3"
