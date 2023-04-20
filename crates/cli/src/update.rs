@@ -105,6 +105,7 @@ pub fn self_update_release() -> anyhow::Result<Box<dyn ReleaseUpdate>> {
         .bin_path_in_archive("cicada")
         .show_download_progress(true)
         .current_version(self_update::cargo_crate_version!())
+        .show_download_progress(true)
         .no_confirm(true)
         .build()?;
 

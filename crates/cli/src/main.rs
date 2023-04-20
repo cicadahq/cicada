@@ -1,5 +1,6 @@
+mod bin_deps;
 mod dag;
-mod deno;
+mod debug;
 mod git;
 mod job;
 mod logging;
@@ -11,15 +12,16 @@ mod update;
 mod util;
 
 use anyhow::{bail, Context, Result};
+use buildkit_rs::util::oci::OciBackend;
 use clap_complete::generate;
 use dialoguer::theme::ColorfulTheme;
 use logging::logging_init;
-use oci::OciBackend;
+use oci::OciArgs;
 use once_cell::sync::Lazy;
 use std::{
     ffi::OsStr,
     path::{Path, PathBuf},
-    process::Stdio,
+    process::{ExitCode, Stdio},
 };
 #[cfg(feature = "telemetry")]
 use telemetry::{segment::TrackEvent, segment_enabled, sentry::sentry_init};
@@ -37,8 +39,8 @@ use tokio::{
 };
 
 use crate::{
+    bin_deps::{buildctl_exe, deno_exe},
     dag::{invert_graph, topological_sort, Node},
-    deno::deno_exe,
     git::github_repo,
     job::{OnFail, Pipeline},
 };
@@ -294,9 +296,8 @@ enum Commands {
         #[arg(long, hide = true)]
         cicada_dockerfile: Option<PathBuf>,
 
-        /// The backend to use for OCI
-        #[arg(long, default_value = "docker", env = "CICADA_OCI_BACKEND")]
-        oci_backend: OciBackend,
+        #[command(flatten)]
+        oci_args: OciArgs,
 
         /// Use the new experimental buildkit backend, this requires the
         /// buildkit daemon to be running as `buildkitd` and the `buildctl` CLI
@@ -316,10 +317,11 @@ enum Commands {
     Completions { shell: clap_complete::Shell },
     #[command(hide = true)]
     Doctor {
-        /// The backend to use for OCI
-        #[arg(long, default_value = "docker", env = "CICADA_OCI_BACKEND")]
-        oci_backend: OciBackend,
+        #[command(flatten)]
+        oci_args: OciArgs,
     },
+    #[command(subcommand, hide = true)]
+    Debug(debug::DebugCommand),
 }
 
 impl Commands {
@@ -332,9 +334,11 @@ impl Commands {
                 dotenv,
                 secrets_json,
                 cicada_dockerfile,
-                oci_backend,
+                oci_args,
                 buildkit_experimental,
             } => {
+                let oci_backend = oci_args.oci_backend();
+
                 #[cfg(feature = "self-update")]
                 tokio::join!(check_for_update(), runtime_checks(&oci_backend));
 
@@ -352,6 +356,7 @@ impl Commands {
                 );
 
                 let deno_exe = deno_exe().await?;
+                let buildctl_exe = buildctl_exe().await?;
 
                 let cicada_bin_tag = if let Some(cicada_dockerfile) = cicada_dockerfile {
                     let tag = format!("cicada-bin:{}", env!("CARGO_PKG_VERSION"));
@@ -405,7 +410,7 @@ impl Commands {
                     )
                 });
 
-                let project_dir = pipeline.parent().unwrap().parent().unwrap();
+                let project_directory = pipeline.parent().unwrap().parent().unwrap();
                 let pipeline_url = Url::from_file_path(&pipeline)
                     .map_err(|_| anyhow::anyhow!("Unable to convert pipeline path to URL"))?;
 
@@ -423,7 +428,7 @@ impl Commands {
                             pipeline_url.to_string().as_ref(),
                             tmp_file.path().to_str().unwrap(),
                         ],
-                        project_dir,
+                        project_directory,
                         tmp_file.path(),
                     )
                     .await?;
@@ -535,23 +540,28 @@ impl Commands {
 
                         let gh_repo = gh_repo.clone();
                         let pipeline_file_name = pipeline_file_name.to_os_string();
-                        let project_dir = project_dir.to_path_buf();
+                        let project_directory = project_directory.to_path_buf();
                         let all_secrets = all_secrets.clone();
                         let cicada_bin_tag = cicada_bin_tag.clone();
+                        let buildctl_exe = buildctl_exe.clone();
 
                         tokio::spawn(
                             async move {
-                                let tag = format!("cicada-{}", job.image);
-
                                 let mut child = if buildkit_experimental {
-                                    let mut buildctl = Command::new("buildctl")
+                                    let mut buildctl = Command::new(buildctl_exe)
                                         // .arg("--debug")
                                         .arg("build")
                                         .arg("--local")
-                                        .arg(format!("local={}", project_dir.display()))
+                                        .arg(format!("local={}", project_directory.display()))
                                         .arg("--progress")
                                         .arg("plain")
-                                        .env("BUILDKIT_HOST", "docker-container://buildkitd")
+                                        .env(
+                                            "BUILDKIT_HOST",
+                                            format!(
+                                                "{}-container://buildkitd",
+                                                oci_backend.as_str()
+                                            ),
+                                        )
                                         .stdin(Stdio::piped())
                                         .stdout(Stdio::piped())
                                         .stderr(Stdio::piped())
@@ -559,6 +569,7 @@ impl Commands {
 
                                     let llb_vec = job.to_llb(
                                         pipeline_file_name.to_str().unwrap(),
+                                        &project_directory,
                                         &gh_repo,
                                         job_index,
                                     );
@@ -569,13 +580,15 @@ impl Commands {
 
                                     buildctl
                                 } else {
+                                    let tag = format!("cicada-{}", job.image);
+
                                     let mut args: Vec<String> = vec![
                                         "buildx".into(),
                                         "build".into(),
                                         "-t".into(),
                                         tag,
                                         "--build-context".into(),
-                                        format!("local={}", project_dir.to_str().unwrap()),
+                                        format!("local={}", project_directory.to_str().unwrap()),
                                         "--progress".into(),
                                         "plain".into(),
                                     ];
@@ -836,18 +849,16 @@ impl Commands {
 
                 // Check if cicada is initialized
                 let Ok(dir) = resolve_cicada_dir() else {
-                    error!(
+                    anyhow::bail!(
                         "Cicada is not initialized in this directory. Run {} to initialize it.",
                         "cicada init".bold()
                     );
-                    std::process::exit(1);
                 };
 
                 let pipeline_path = dir.join(format!("{pipeline}.ts"));
 
                 if pipeline_path.exists() {
-                    error!("Pipeline already exists: {}", pipeline_path.display());
-                    std::process::exit(1);
+                    anyhow::bail!("Pipeline already exists: {}", pipeline_path.display());
                 }
 
                 tokio::fs::write(&pipeline_path, &*TEMPLATES[0]).await?;
@@ -882,8 +893,7 @@ impl Commands {
             }
             #[cfg(not(feature = "self-update"))]
             Commands::Update => {
-                error!("self update is not enabled in this build");
-                std::process::exit(1);
+                anyhow::bail!("self update is not enabled in this build");
             }
             Commands::Completions { shell } => {
                 use clap::CommandFactory;
@@ -894,11 +904,12 @@ impl Commands {
                     &mut std::io::stdout(),
                 );
             }
-            Commands::Doctor { oci_backend } => {
+            Commands::Doctor { oci_args } => {
                 info!("Checking for common problems...");
-                runtime_checks(&oci_backend).await;
+                runtime_checks(&oci_args.oci_backend()).await;
                 info!("\nAll checks passed!");
             }
+            Commands::Debug(debug_command) => debug_command.run().await?,
         }
 
         Ok(())
@@ -914,17 +925,32 @@ impl Commands {
             Commands::Update => "update",
             Commands::Completions { .. } => "completions",
             Commands::Doctor { .. } => "doctor",
+            Commands::Debug { .. } => "debug",
+        }
+    }
+
+    #[cfg(feature = "telemetry")]
+    fn track(&self) -> bool {
+        match self {
+            Commands::Run { .. } => true,
+            Commands::Step { .. } => false,
+            Commands::Init { .. } => true,
+            Commands::New { .. } => true,
+            Commands::Update => true,
+            Commands::Completions { .. } => false,
+            Commands::Doctor { .. } => true,
+            Commands::Debug { .. } => false,
         }
     }
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> ExitCode {
     #[cfg(feature = "telemetry")]
     let _sentry_guard = sentry_init();
     if let Err(err) = logging_init() {
         eprintln!("Failed to init logger: {err:#?}");
-        std::process::exit(1);
+        return ExitCode::FAILURE;
     }
 
     if std::env::var_os("CICADA_FORCE_COLOR").is_some() {
@@ -934,7 +960,7 @@ async fn main() {
     let command = Commands::parse();
 
     #[cfg(feature = "telemetry")]
-    let telem_join = segment_enabled().then(|| {
+    let telem_join = (command.track() && segment_enabled()).then(|| {
         let subcommand = command.subcommand().to_owned();
         tokio::spawn(
             TrackEvent::SubcommandExecuted {
@@ -951,12 +977,15 @@ async fn main() {
         join.await.ok();
     }
 
-    if let Err(err) = res {
-        if std::env::var_os("CICADA_DEBUG").is_some() {
-            error!("{err:#?}");
-        } else {
-            error!("{err}");
+    match res {
+        Ok(_) => ExitCode::SUCCESS,
+        Err(err) => {
+            if std::env::var_os("CICADA_DEBUG").is_some() {
+                error!("{err:#?}");
+            } else {
+                error!("{err}");
+            }
+            ExitCode::FAILURE
         }
-        std::process::exit(1);
     }
 }

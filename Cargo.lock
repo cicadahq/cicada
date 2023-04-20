@@ -211,9 +211,10 @@ dependencies = [
 [[package]]
 name = "buildkit-rs"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#2784d0e622963fae1d0f83bf4db8dc1b307828f1"
+source = "git+https://github.com/cicadahq/buildkit-rs.git#d681cbc8273f6d284d31d7eb31426109cf757239"
 dependencies = [
- "buildkit-rs-frontend",
+ "buildkit-rs-client",
+ "buildkit-rs-ignore",
  "buildkit-rs-llb",
  "buildkit-rs-proto",
  "buildkit-rs-reference",
@@ -221,17 +222,35 @@ dependencies = [
 ]
 
 [[package]]
-name = "buildkit-rs-frontend"
+name = "buildkit-rs-client"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#2784d0e622963fae1d0f83bf4db8dc1b307828f1"
+source = "git+https://github.com/cicadahq/buildkit-rs.git#d681cbc8273f6d284d31d7eb31426109cf757239"
 dependencies = [
+ "buildkit-rs-llb",
+ "buildkit-rs-proto",
+ "buildkit-rs-util",
+ "pin-project",
+ "thiserror",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
  "tonic",
+ "tower",
+]
+
+[[package]]
+name = "buildkit-rs-ignore"
+version = "0.1.0"
+source = "git+https://github.com/cicadahq/buildkit-rs.git#d681cbc8273f6d284d31d7eb31426109cf757239"
+dependencies = [
+ "path-clean",
+ "thiserror",
 ]
 
 [[package]]
 name = "buildkit-rs-llb"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#2784d0e622963fae1d0f83bf4db8dc1b307828f1"
+source = "git+https://github.com/cicadahq/buildkit-rs.git#d681cbc8273f6d284d31d7eb31426109cf757239"
 dependencies = [
  "buildkit-rs-proto",
  "buildkit-rs-reference",
@@ -245,7 +264,7 @@ dependencies = [
 [[package]]
 name = "buildkit-rs-proto"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#2784d0e622963fae1d0f83bf4db8dc1b307828f1"
+source = "git+https://github.com/cicadahq/buildkit-rs.git#d681cbc8273f6d284d31d7eb31426109cf757239"
 dependencies = [
  "prost",
  "prost-build",
@@ -257,7 +276,7 @@ dependencies = [
 [[package]]
 name = "buildkit-rs-reference"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#2784d0e622963fae1d0f83bf4db8dc1b307828f1"
+source = "git+https://github.com/cicadahq/buildkit-rs.git#d681cbc8273f6d284d31d7eb31426109cf757239"
 dependencies = [
  "once_cell",
  "regex",
@@ -267,7 +286,7 @@ dependencies = [
 [[package]]
 name = "buildkit-rs-util"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#2784d0e622963fae1d0f83bf4db8dc1b307828f1"
+source = "git+https://github.com/cicadahq/buildkit-rs.git#d681cbc8273f6d284d31d7eb31426109cf757239"
 
 [[package]]
 name = "bumpalo"
@@ -321,6 +340,7 @@ dependencies = [
  "dialoguer",
  "dirs",
  "dotenvy",
+ "flate2",
  "futures",
  "indicatif",
  "once_cell",
@@ -334,6 +354,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "shlex",
+ "tar",
  "tempfile",
  "time",
  "tokio",
@@ -347,9 +368,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.2.3"
+version = "4.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "49f9152d70e42172fdb87de2efd7327160beee37886027cf86f30a233d5b30b4"
+checksum = "956ac1f6381d8d82ab4684768f89c0ea3afe66925ceadb4eeb3fc452ffc55d62"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -358,9 +379,9 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.2.3"
+version = "4.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e067b220911598876eb55d52725ddcc201ffe3f0904018195973bc5b012ea2ca"
+checksum = "84080e799e54cff944f4b4a4b0e71630b0e0443b25b985175c7dddc1a859b749"
 dependencies = [
  "anstream",
  "anstyle",
@@ -590,6 +611,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a8a2db397cb1c8772f31494cb8917e48cd1e64f0fa7efac59fbd741a0a8ce841"
 dependencies = [
  "crc32fast",
+ "libz-sys",
  "miniz_oxide",
 ]
 
@@ -987,15 +1009,26 @@ checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
 name = "libc"
-version = "0.2.141"
+version = "0.2.142"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3304a64d199bb964be99741b7a14d26972741915b3649639149b2479bb46f4b5"
+checksum = "6a987beff54b60ffa6d51982e1aa1146bc42f19bd26be28b0586f252fccf5317"
+
+[[package]]
+name = "libz-sys"
+version = "1.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9702761c3935f8cc2f101793272e202c72b99da8f4224a19ddcf1279a6450bbf"
+dependencies = [
+ "cc",
+ "pkg-config",
+ "vcpkg",
+]
 
 [[package]]
 name = "linux-raw-sys"
-version = "0.3.2"
+version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f508063cc7bb32987c71511216bd5a32be15bccb6a80b52df8b9d7f01fc3aa2"
+checksum = "9b085a4f2cde5781fc4b1717f2e86c62f5cda49de7ba99a7c2eae02b61c9064c"
 
 [[package]]
 name = "lock_api"
@@ -1167,6 +1200,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "path-clean"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "17359afc20d7ab31fdb42bb844c8b3bb1dabd7dcf7e68428492da7f16966fcef"
+
+[[package]]
 name = "percent-encoding"
 version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1213,6 +1252,12 @@ name = "pin-utils"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
+
+[[package]]
+name = "pkg-config"
+version = "0.3.26"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6ac9a59f73473f1b8d852421e59e64809f025994837ef743615c6d0c5b305160"
 
 [[package]]
 name = "portable-atomic"
@@ -1474,9 +1519,9 @@ dependencies = [
 
 [[package]]
 name = "rustix"
-version = "0.37.12"
+version = "0.37.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "722529a737f5a942fdbac3a46cee213053196737c5eaa3386d52e85b786f2659"
+checksum = "f79bef90eb6d984c72722595b5b1348ab39275a5e5123faca6863bf07d75a4e0"
 dependencies = [
  "bitflags",
  "errno",
@@ -1564,9 +1609,9 @@ checksum = "bebd363326d05ec3e2f532ab7660680f3b02130d780c299bca73469d521bc0ed"
 
 [[package]]
 name = "sentry"
-version = "0.30.0"
+version = "0.31.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b5ce6d3512e2617c209ec1e86b0ca2fea06454cd34653c91092bf0f3ec41f8e3"
+checksum = "6c3d7f8bf7373e75222452fcdd9347d857452a92d0eec738f941bc4656c5b5df"
 dependencies = [
  "httpdate",
  "reqwest",
@@ -1582,9 +1627,9 @@ dependencies = [
 
 [[package]]
 name = "sentry-backtrace"
-version = "0.30.0"
+version = "0.31.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e7fe408d4d1f8de188a9309916e02e129cbe51ca19e55badea5a64899399b1a"
+checksum = "03b7cdefbdca51f1146f0f24a3cb4ecb6428951f030ff5c720cfb5c60bd174c0"
 dependencies = [
  "backtrace",
  "once_cell",
@@ -1594,9 +1639,9 @@ dependencies = [
 
 [[package]]
 name = "sentry-contexts"
-version = "0.30.0"
+version = "0.31.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5695096a059a89973ec541062d331ff4c9aeef9c2951416c894f0fff76340e7d"
+checksum = "6af4cb29066e0e8df0cc3111211eb93543ccb09e1ccbe71de6d88b4bb459a2b1"
 dependencies = [
  "hostname",
  "libc",
@@ -1608,9 +1653,9 @@ dependencies = [
 
 [[package]]
 name = "sentry-core"
-version = "0.30.0"
+version = "0.31.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5b22828bfd118a7b660cf7a155002a494755c0424cebb7061e4743ecde9c7dbc"
+checksum = "5e781b55761e47a60d1ff326ae8059de22b0e6b0cee68eab1c5912e4fb199a76"
 dependencies = [
  "once_cell",
  "rand",
@@ -1621,9 +1666,9 @@ dependencies = [
 
 [[package]]
 name = "sentry-panic"
-version = "0.30.0"
+version = "0.31.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1f4ced2a7a8c14899d58eec402d946f69d5ed26a3fc363a7e8b1e5cb88473a01"
+checksum = "0e0b877981990d9e84ae6916df61993d188fdf76afb59521f0aeaf9b8e6d26d0"
 dependencies = [
  "sentry-backtrace",
  "sentry-core",
@@ -1631,9 +1676,9 @@ dependencies = [
 
 [[package]]
 name = "sentry-types"
-version = "0.30.0"
+version = "0.31.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "360ee3270f7a4a1eee6c667f7d38360b995431598a73b740dfe420da548d9cc9"
+checksum = "d642a04657cc77d8de52ae7c6d93a15cb02284eb219344a89c1e2b26bbaf578c"
 dependencies = [
  "debugid",
  "getrandom",
@@ -2079,6 +2124,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ce8c33a8d48bd45d624a6e523445fd21ec13d3653cd51f681abf67418f54eb8"
 dependencies = [
  "cfg-if",
+ "log",
  "pin-project-lite",
  "tracing-attributes",
  "tracing-core",
@@ -2264,6 +2310,12 @@ name = "valuable"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "830b7e5d4d90034032940e4ace0d9a9a057e7a45cd94e6c007832e39edb82f6d"
+
+[[package]]
+name = "vcpkg"
+version = "0.2.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
 
 [[package]]
 name = "version_check"

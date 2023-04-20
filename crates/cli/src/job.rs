@@ -1,9 +1,10 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, path::Path, sync::Arc};
 
 use camino::Utf8PathBuf;
 use serde::{Deserialize, Serialize};
+use tracing::error;
 
-use crate::{deno::DENO_VERSION, git::Github};
+use crate::{bin_deps::DENO_VERSION, git::Github};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -208,6 +209,20 @@ impl Step {
         }
         .with_mount(root_mount);
 
+        // Custom name for the step
+        match (&self.name, &self.run) {
+            (Some(name), StepRun::Command { command }) => {
+                exec = exec.with_custom_name(format!("{name} ({step_index}): {command}"))
+            }
+            (Some(name), StepRun::DenoFunction) => {
+                exec = exec.with_custom_name(format!("{name} ({step_index})"))
+            }
+            (None, StepRun::Command { command }) => exec = exec.with_custom_name(command.clone()),
+            (None, StepRun::DenoFunction) => {
+                exec = exec.with_custom_name(format!("Step {step_index}"))
+            }
+        }
+
         // If the step has a working directory, we need to set it
         let working_directory = if let Some(working_directory) = &self.working_directory {
             // This is relative to the parent working directory if it is not absolute
@@ -357,6 +372,7 @@ impl Job {
     pub fn to_llb(
         &self,
         module_name: &str,
+        project_directory: &Path,
         github: &Option<Github>,
         job_index: usize,
         // bootstrap: bool,
@@ -368,9 +384,38 @@ impl Job {
             .clone()
             .unwrap_or_else(|| Utf8PathBuf::from("/app"));
 
-        let local: Local = Local::new("local".into());
+        let mut local: Local = Local::new("local".into());
 
-        let image = Image::new(&self.image).with_custom_name(self.name.clone().unwrap());
+        // Try to load excludes from `.cicadaignore`, `.containerignore`, `.dockerignore` in that order
+        for ignore_name in &[".cicadaignore", ".containerignore", ".dockerignore"] {
+            let ignore_path = project_directory.join(ignore_name);
+            if ignore_path.is_file() {
+                // Read the file, strip comments and empty lines
+                let ignore_file = match std::fs::File::open(ignore_path) {
+                    Ok(ignore_file) => ignore_file,
+                    Err(err) => {
+                        error!(%err, "Failed to open ignore file {ignore_name}: {err}");
+                        break;
+                    }
+                };
+
+                let list = match buildkit_rs::ignore::read_ignore_to_list(ignore_file) {
+                    Ok(list) => list,
+                    Err(err) => {
+                        error!(%err, "Failed to read ignore file {ignore_name}: {err}");
+                        break;
+                    }
+                };
+
+                local = local.with_excludes(list);
+
+                break;
+            }
+        }
+
+        let image = Image::new(&self.image)
+            .with_custom_name(self.name.clone().unwrap())
+            .with_resolve_mode(ResolveMode::Local);
 
         let deno_image = Image::new(format!("docker.io/denoland/deno:bin-{DENO_VERSION}"));
         let cicada_image = Image::new(format!(
@@ -378,19 +423,22 @@ impl Job {
             env!("CARGO_PKG_VERSION")
         ));
 
-        let deno_cp = Exec::shlex("cp /deno/deno /usr/local/bin/deno")
+        let deno_cp = Exec::shlex("cp /deno-mnt/deno /usr/local/bin/deno")
             .with_mount(Mount::layer(image.output(), "/", 0))
-            .with_mount(Mount::layer_readonly(deno_image.output(), "/deno"));
+            .with_mount(Mount::layer_readonly(deno_image.output(), "/deno-mnt"))
+            .with_custom_name("Install Deno");
 
-        let cicada_cp = Exec::shlex("cp /cicada/cicada /usr/local/bin/cicada")
+        let cicada_cp = Exec::shlex("cp /cicada-mnt/cicada /usr/local/bin/cicada")
             .with_mount(Mount::layer(deno_cp.output(0), "/", 0))
-            .with_mount(Mount::layer_readonly(cicada_image.output(), "/cicada"));
+            .with_mount(Mount::layer_readonly(cicada_image.output(), "/cicada-mnt"))
+            .with_custom_name("Install Cicada");
 
         let local_cp = Exec::shlex(format!(
             "/bin/sh -c 'mkdir -p {working_directory} && cp -r /local/* {working_directory}'"
         ))
         .with_mount(Mount::layer(cicada_cp.output(0), "/", 0))
-        .with_mount(Mount::layer_readonly(local.output(), "/local"));
+        .with_mount(Mount::layer_readonly(local.output(), "/local"))
+        .with_custom_name("Copy local files");
 
         let mut env = vec![
             "CI=1".into(),
