@@ -11,15 +11,16 @@
  * const job = new Job({
  *   name: "Hello World",
  *   image: "node:18",
- *   steps: [
- *     "echo Hello World",
- *   ],
+ *   steps: [{
+ *     run: "echo Hello World",
+ *   }],
  * });
  *
  * export default new Pipeline([job]);
  * ```
  *
  * For more information, see the [Cicada documentation](https://cicada.run/docs).
+ * @module
  */
 
 import { resolve } from "https://deno.land/x/cicada/deps.ts";
@@ -46,7 +47,7 @@ export interface CacheDirectoryOptions {
 }
 
 /**
- * A directory to cache, which can be a single file path or an array of file paths.
+ * A directory to cache. This can be a single file path or an array of file paths.
  */
 export type CacheDirectories = (FilePath | CacheDirectoryOptions)[];
 
@@ -56,7 +57,7 @@ export type CacheDirectories = (FilePath | CacheDirectoryOptions)[];
 export type StepFn = () => void | Promise<void> | number | Promise<number>;
 
 /**
- * A step with all available options
+ * The options available in a step such as the name, the script to run, what directories to cache, and the secrets/env variables needed.
  */
 export interface StepOptions {
   /**
@@ -70,38 +71,37 @@ export interface StepOptions {
   name?: string;
 
   /**
-   * Cache directories, these will be mounted as docker volumes.
-   *
-   * If the path is absolute, it will be mounted as is, otherwise it will be mounted relative to the project root.
-   * This will mount for all steps in the job.
+   * Cache directories are mounted as docker volumes. You may use absolute or relative paths. They are mounted for this job only. Use cacheDirectories in a {@link Job Job} for caching at the Job level.
    */
   cacheDirectories?: CacheDirectories;
 
   /**
-   * Disable caching for this step, this will cause the step to run every time, it may cause subsequent steps to run as well.
+   * Disable caching for this step. This will cause the step to run every time and may cause subsequent steps to run every time as well.
    * @default false
    */
   ignoreCache?: boolean;
 
   /**
-   * Environment variables to set for this step.
+   * Environment variables to set specifically for this step
    */
   env?: Record<string, string>;
 
   /**
-   * Secrets to expose for this step. They are accessed with `getSecret` or via the `/var/run/secrets` directory.
+   * Secrets to expose specifically for this step. Secrets are accessible in the run param. using the the `getSecret()` function or via the `/var/run/secrets` directory.
+   *
+   * Use secrets rather than env for greater security in job runs and caching.
    */
   secrets?: Secret[];
 
   /**
-   * Specify the working directory where this job should run
+   * The working directory where this job should run.
    */
   workingDirectory?: FilePath;
 }
 
 /**
- * A step in the pipeline, which can be an object with a name and a run property,
- * a step function, or a string command.
+ * A step in the job. A step can either be an object with a run property,
+ * a step function (which executed typescript), or a string command (which executes as bash).
  */
 export type Step =
   | StepOptions
@@ -109,8 +109,7 @@ export type Step =
   | string;
 
 /**
- * The options for a job, including the name, image, environment variables,
- * cache, and steps.
+ * The options for a job, including the name, base image, environment variables, secrets, folder cache, and steps.
  */
 export interface JobOptions {
   /**
@@ -121,35 +120,32 @@ export interface JobOptions {
   image: DockerImages;
 
   /**
-   * A list of steps to run in the job.
+   * A list of steps to run in the job. Each step can be a deno/typescript script or a shell script.
    */
   steps: Step[];
 
   /**
-   * The name of the job, this will be used in the logs.
+   * The name of the job. This will be displayed in the logs and can be referenced in another job's "dependsOn" property
    */
   name?: string;
 
   /**
-   * Environment variables to set for this job.
+   * Environment variables to set for this job. These will be available for every step.
    */
   env?: Record<string, string>;
 
   /**
-   * Cache directories, these will be mounted as docker volumes.
-   *
-   * If the path is absolute, it will be mounted as is, otherwise it will be mounted relative to the project root.
-   * This will mount for all steps in the job.
+   * Cache directories are mounted as docker volumes. They are mounted for all steps in a job. You may use absolute or relative paths.
    */
   cacheDirectories?: CacheDirectories;
 
   /**
-   * Specify the working directory where this job should run
+   * The working directory where this job should run
    */
   workingDirectory?: FilePath;
 
   /**
-   * Require these jobs to run before the current job can be executed.
+   * A list of jobs that must run before the current job can be executed.
    */
   dependsOn?: Job[];
 
@@ -162,7 +158,7 @@ export interface JobOptions {
 }
 
 /**
- * Represents a job in the pipeline with its options.
+ *  A job is a lightweight container that executes code. Jobs can be configured with JobOptions. By default, all jobs in a pipeline run in parallel.
  */
 export class Job {
   /**
@@ -183,7 +179,7 @@ export class Job {
 export type Branch = string;
 
 /**
- * The declarative options for a trigger.
+ * The options for configuring a pipeline's trigger event.
  */
 export interface TriggerOptions {
   push?: Branch[];
@@ -196,7 +192,7 @@ export interface TriggerOptions {
 // export type TriggerFn = () => boolean | Promise<boolean>;
 
 /**
- * The trigger for a pipeline
+ * The trigger events which determines when a pipeline should run.
  */
 export type Trigger = TriggerOptions; //TriggerFn | TriggerOptions;
 
@@ -215,7 +211,7 @@ export interface PipelineOptions {
 }
 
 /**
- * Represents a pipeline containing an array of jobs.
+ * A pipeline is an array of jobs. Jobs are executed in parallel by default.
  */
 export class Pipeline {
   /**
@@ -226,6 +222,16 @@ export class Pipeline {
   constructor(public jobs: Job[], public options?: PipelineOptions) {}
 }
 
+/**
+ * A secret is an encrypted variable. Secrets are not cached and are therefore safer to use than environment variables.
+ *
+ * Create a secret by referencing the corresponding secret key in your Cicada Dashboard
+ *
+ * @example
+ * ```
+ * var gh_token = new Secret("github-secret-key")
+ * ```
+ */
 export class Secret {
   static readonly #isInJob = Deno.env.has("CICADA_JOB");
   static readonly #secretsDir = "/run/secrets";
@@ -255,7 +261,7 @@ export class Secret {
   };
 
   /**
-   * Get a secret value from the secrets directory. The secret is only available during the job if it is specified in the job options.
+   * Get a secret value from the secrets directory asyncrhronously. The secret is only available during the job if it is specified in the job options.
    * This is an asynchronous version of {@linkcode valueSync()}.
    *
    * @returns The secret value
@@ -271,7 +277,7 @@ export class Secret {
   }
 
   /**
-   * Get a secret value from the secrets directory. The secret is only available during the job if it is specified in the job options.
+   * Get a secret value from the secrets directory syncrhonously. The secret is only available during the job if it is specified in the job options.
    * This is a synchronous version of {@linkcode value()}.
    *
    * @returns The secret value
