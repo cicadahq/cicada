@@ -473,6 +473,37 @@ impl Commands {
                     }
                 }
 
+                if cfg!(feature = "buildkit-experimental") {
+                    let inspect_output = Command::new(oci_backend.as_str())
+                        .args(["inspect", "cicada-buildkitd", "--type", "container"])
+                        .output()
+                        .await?;
+
+                    if !inspect_output.status.success() {
+                        Command::new(oci_backend.as_str())
+                            .args([
+                                "run",
+                                "-d",
+                                "--name",
+                                "cicada-buildkitd",
+                                "--privileged",
+                                "moby/buildkit:latest",
+                            ])
+                            .status()
+                            .await?;
+                    } else {
+                        let containers: Vec<serde_json::Value> =
+                            serde_json::from_slice(&inspect_output.stdout)?;
+
+                        if containers[0]["State"]["Status"] != "running" {
+                            Command::new(oci_backend.as_str())
+                                .args(["start", "cicada-buildkitd"])
+                                .status()
+                                .await?;
+                        }
+                    }
+                }
+
                 let mut jobs = HashMap::from_iter(
                     pipeline
                         .jobs
