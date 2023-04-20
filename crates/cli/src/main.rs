@@ -469,18 +469,13 @@ impl Commands {
                 }
 
                 let inspect_output = Command::new(oci_backend.as_str())
-                    .args(&[
-                        "inspect",
-                        "cicada-buildkitd",
-                        "--type",
-                        "container",
-                    ])
+                    .args(["inspect", "cicada-buildkitd", "--type", "container"])
                     .output()
                     .await?;
 
                 if !inspect_output.status.success() {
                     Command::new(oci_backend.as_str())
-                        .args(&[
+                        .args([
                             "run",
                             "-d",
                             "--name",
@@ -496,7 +491,7 @@ impl Commands {
 
                     if containers[0]["State"]["Status"] != "running" {
                         Command::new(oci_backend.as_str())
-                            .args(&["start", "cicada-buildkitd"])
+                            .args(["start", "cicada-buildkitd"])
                             .status()
                             .await?;
                     }
