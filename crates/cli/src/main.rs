@@ -12,6 +12,7 @@ mod util;
 
 use anyhow::{bail, Context, Result};
 use clap_complete::generate;
+use dialoguer::theme::ColorfulTheme;
 use logging::logging_init;
 use oci::OciBackend;
 use once_cell::sync::Lazy;
@@ -778,13 +779,18 @@ impl Commands {
 
                 let cicada_dir = PathBuf::from(".cicada");
 
-                if !cicada_dir.exists() {
+                if cicada_dir.exists() {
+                    anyhow::bail!(
+                        "Cicada directory already exists, run {} to create a new pipeline",
+                        "cicada new".bold()
+                    );
+                } else {
                     std::fs::create_dir(&cicada_dir)?;
                 }
 
                 let pipeline_name = match pipeline {
                     Some(pipeline) => pipeline,
-                    None => dialoguer::Input::new()
+                    None => dialoguer::Input::with_theme(&ColorfulTheme::default())
                         .with_prompt("What should we call your pipeline")
                         .interact_text()?,
                 }
@@ -799,8 +805,9 @@ impl Commands {
 
                 tokio::fs::write(
                     &pipeline_path,
-                    &*TEMPLATES[dialoguer::Select::new()
+                    &*TEMPLATES[dialoguer::Select::with_theme(&ColorfulTheme::default())
                         .with_prompt("Select a template")
+                        .default(0)
                         // TODO: add more templates, contribs welcome :D
                         .items(&["Default", "Node", "Rust"])
                         .interact()?],
