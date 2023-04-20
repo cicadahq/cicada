@@ -12,9 +12,10 @@ mod update;
 mod util;
 
 use anyhow::{bail, Context, Result};
+use buildkit_rs::util::oci::OciBackend;
 use clap_complete::generate;
 use logging::logging_init;
-use oci::OciBackend;
+use oci::OciArgs;
 use once_cell::sync::Lazy;
 use std::{
     ffi::OsStr,
@@ -37,7 +38,7 @@ use tokio::{
 };
 
 use crate::{
-    bin_deps::deno_exe,
+    bin_deps::{buildctl_exe, deno_exe},
     dag::{invert_graph, topological_sort, Node},
     git::github_repo,
     job::{OnFail, Pipeline},
@@ -288,9 +289,8 @@ enum Commands {
         #[arg(long, hide = true)]
         cicada_dockerfile: Option<PathBuf>,
 
-        /// The backend to use for OCI
-        #[arg(long, default_value = "docker", env = "CICADA_OCI_BACKEND")]
-        oci_backend: OciBackend,
+        #[command(flatten)]
+        oci_args: OciArgs,
 
         /// Use the new experimental buildkit backend, this requires the
         /// buildkit daemon to be running as `buildkitd` and the `buildctl` CLI
@@ -310,11 +310,10 @@ enum Commands {
     Completions { shell: clap_complete::Shell },
     #[command(hide = true)]
     Doctor {
-        /// The backend to use for OCI
-        #[arg(long, default_value = "docker", env = "CICADA_OCI_BACKEND")]
-        oci_backend: OciBackend,
+        #[command(flatten)]
+        oci_args: OciArgs,
     },
-    #[command(subcommand)]
+    #[command(subcommand, hide = true)]
     Debug(debug::DebugCommand),
 }
 
@@ -328,9 +327,11 @@ impl Commands {
                 dotenv,
                 secrets_json,
                 cicada_dockerfile,
-                oci_backend,
+                oci_args,
                 buildkit_experimental,
             } => {
+                let oci_backend = oci_args.oci_backend();
+
                 #[cfg(feature = "self-update")]
                 tokio::join!(check_for_update(), runtime_checks(&oci_backend));
 
@@ -348,6 +349,7 @@ impl Commands {
                 );
 
                 let deno_exe = deno_exe().await?;
+                let buildctl_exe = buildctl_exe().await?;
 
                 let cicada_bin_tag = if let Some(cicada_dockerfile) = cicada_dockerfile {
                     let tag = format!("cicada-bin:{}", env!("CARGO_PKG_VERSION"));
@@ -534,11 +536,12 @@ impl Commands {
                         let project_directory = project_directory.to_path_buf();
                         let all_secrets = all_secrets.clone();
                         let cicada_bin_tag = cicada_bin_tag.clone();
+                        let buildctl_exe = buildctl_exe.clone();
 
                         tokio::spawn(
                             async move {
                                 let mut child = if buildkit_experimental {
-                                    let mut buildctl = Command::new("buildctl")
+                                    let mut buildctl = Command::new(buildctl_exe)
                                         // .arg("--debug")
                                         .arg("build")
                                         .arg("--local")
@@ -874,9 +877,9 @@ impl Commands {
                     &mut std::io::stdout(),
                 );
             }
-            Commands::Doctor { oci_backend } => {
+            Commands::Doctor { oci_args } => {
                 info!("Checking for common problems...");
-                runtime_checks(&oci_backend).await;
+                runtime_checks(&oci_args.oci_backend()).await;
                 info!("\nAll checks passed!");
             }
             Commands::Debug(debug_command) => debug_command.run().await?,

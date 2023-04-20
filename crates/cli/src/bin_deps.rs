@@ -6,6 +6,7 @@ use tokio::process::Command;
 pub const DENO_VERSION: &str = "1.32.5";
 pub const DENO_VERSION_REQ: &str = ">=1.32";
 
+#[cfg(feature = "managed-bins")]
 pub const BUILDCTL_VERSION: &str = "0.11.5";
 pub const BUILDCTL_VERSION_REQ: &str = ">=0.11";
 
@@ -117,6 +118,7 @@ pub async fn download_deno_exe() -> anyhow::Result<PathBuf> {
 
         spinner.inc(chunk.len() as u64);
     }
+    tempfile.flush().await?;
 
     spinner.finish_and_clear();
     eprintln!("✅ Downloaded deno v{DENO_VERSION}");
@@ -148,7 +150,7 @@ pub async fn download_deno_exe() -> anyhow::Result<PathBuf> {
     }
 
     spinner.finish_and_clear();
-    eprintln!("✅ Extracted deno v{DENO_VERSION}");
+    eprintln!("✅ Installed deno v{DENO_VERSION}");
 
     Ok(managed_deno_exe)
 }
@@ -170,8 +172,7 @@ fn buildctl_download_link() -> anyhow::Result<String> {
 
 #[cfg(feature = "managed-bins")]
 pub async fn download_buildctl_exe() -> anyhow::Result<PathBuf> {
-    use std::time::Duration;
-    use tokio::io::AsyncWriteExt;
+    use std::{io::Write, time::Duration};
 
     // otherwise download the managed version if it doesn't exist
     let managed_buildctl_exe = managed_buildctl_exe()?;
@@ -189,7 +190,7 @@ pub async fn download_buildctl_exe() -> anyhow::Result<PathBuf> {
 
     let buildctl_download_link = buildctl_download_link()?;
 
-    let mut tempfile = tokio::fs::File::from_std(tempfile::tempfile()?);
+    let mut tempfile = tempfile::NamedTempFile::new()?;
 
     let mut buildctl_archive_res = reqwest::get(&buildctl_download_link).await?;
 
@@ -206,10 +207,11 @@ pub async fn download_buildctl_exe() -> anyhow::Result<PathBuf> {
     );
 
     while let Some(chunk) = buildctl_archive_res.chunk().await? {
-        tempfile.write_all(&chunk).await?;
+        tempfile.write_all(&chunk)?;
 
         spinner.inc(chunk.len() as u64);
     }
+    tempfile.flush()?;
 
     spinner.finish_and_clear();
     eprintln!("✅ Downloaded buildctl v{BUILDCTL_VERSION}");
@@ -222,33 +224,52 @@ pub async fn download_buildctl_exe() -> anyhow::Result<PathBuf> {
         ))?,
     );
 
-    let compressed_archive = tempfile.into_std().await;
-    let mut archive = tempfile::tempfile()?;
-    let mut archive_decoder = flate2::read::GzDecoder::new(&compressed_archive);
+    // let compressed_archive = tempfile.into_std().await;
+    // let archive_decoder =
+    //     flate2::bufread::GzDecoder::new(std::io::BufReader::new(&compressed_archive));
 
-    todo!();
+    // let unpacked_dir = tempfile::tempdir()?;
 
-    std::io::copy(&mut archive_decoder, &mut archive)?;
+    // tar::Archive::new(archive_decoder)
+    //     .unpack(unpacked_dir.path())
+    //     .context("Failed to unpack buildctl archive")?;
 
-    drop(archive_decoder);
-    drop(compressed_archive);
+    // libs arent working, we are going to use `Command` instead for now
 
-    let unpacked_dir = tempfile::tempdir()?;
+    let tempdir = tempfile::tempdir()?;
 
-    tar::Archive::new(archive).unpack(unpacked_dir.path())?;
+    Command::new("tar")
+        .arg("xzf")
+        .arg(tempfile.path())
+        .arg("-C")
+        .arg(tempdir.path())
+        .output()
+        .await?;
 
-    // todo!();
+    let buildctl_path = tempdir.path().join("bin").join("buildctl");
 
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let mut perms = std::fs::metadata(&managed_buildctl_exe)?.permissions();
-        perms.set_mode(0o755);
-        std::fs::set_permissions(&managed_buildctl_exe, perms)?;
-    }
+    // Print the contents of the archive
+    Command::new("ls")
+        .arg("-l")
+        .arg(&buildctl_path)
+        .spawn()?
+        .wait()
+        .await?;
+
+    // #[cfg(unix)]
+    // {
+    //     use std::os::unix::fs::PermissionsExt;
+    //     let mut perms = std::fs::metadata(&managed_buildctl_exe)?.permissions();
+    //     perms.set_mode(0o755);
+    //     std::fs::set_permissions(&managed_buildctl_exe, perms)?;
+    // }
+
+    tokio::fs::copy(buildctl_path, &managed_buildctl_exe).await?;
+
+    drop(tempdir);
 
     spinner.finish_and_clear();
-    eprintln!("✅ Extracted buildctl v{BUILDCTL_VERSION}");
+    eprintln!("✅ Installed buildctl v{BUILDCTL_VERSION}");
 
     Ok(managed_buildctl_exe)
 }
@@ -269,6 +290,26 @@ pub async fn deno_exe() -> anyhow::Result<PathBuf> {
 
     #[cfg(not(feature = "managed-bins"))]
     return Err(anyhow::anyhow!("Cicada requires Deno {DENO_VERSION_REQ} to run. Please install it using one of the methods on https://deno.land/manual/getting_started/installation"));
+}
+
+pub async fn buildctl_exe() -> anyhow::Result<PathBuf> {
+    // Check if the buildctl version is already satisfied by the one in the path
+    if let Some(buildctl_version) = path_buildctl_version().await {
+        if buildctl_version_req().matches(&buildctl_version) {
+            return Ok(PathBuf::from("buildctl"));
+        }
+    }
+
+    // otherwise download the managed version if it doesn't exist
+    #[cfg(feature = "managed-bins")]
+    let exe = download_buildctl_exe().await?;
+    #[cfg(feature = "managed-bins")]
+    return Ok(exe);
+
+    #[cfg(not(feature = "managed-bins"))]
+    return Err(anyhow::anyhow!(
+        "Cicada requires buildctl {BUILDCTL_VERSION_REQ} to run."
+    ));
 }
 
 #[cfg(test)]
@@ -343,10 +384,11 @@ mod tests {
 
         let buildctl_version_str = String::from_utf8(buildctl_version_stdout).unwrap();
         let buildctl_version_str = buildctl_version_str.trim();
-        let buildctl_trimmed = buildctl_version_str
-            .strip_prefix("buildctl github.com/moby/buildkit v")
+        let buildctl_version_str = buildctl_version_str.split_whitespace().nth(2).unwrap();
+        let buildctl_version_str = buildctl_version_str
+            .strip_prefix("v")
             .unwrap_or(buildctl_version_str);
 
-        assert_eq!(BUILDCTL_VERSION, buildctl_trimmed);
+        assert_eq!(BUILDCTL_VERSION, buildctl_version_str);
     }
 }

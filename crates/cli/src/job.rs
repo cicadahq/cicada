@@ -407,7 +407,7 @@ impl Job {
                     }
                 };
 
-                local = dbg!(local.with_excludes(list));
+                local = local.with_excludes(list);
 
                 break;
             }

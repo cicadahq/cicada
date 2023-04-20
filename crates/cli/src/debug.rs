@@ -6,23 +6,35 @@ use buildkit_rs::{
         Definition, Exec, Image, Mount, MultiBorrowedOutput, OpMetadataBuilder,
         SingleBorrowedOutput,
     },
+    util::oci::OciBackend,
 };
 use owo_colors::OwoColorize;
+
+use crate::oci::OciArgs;
 
 #[derive(Debug, clap::Subcommand)]
 pub(crate) enum DebugCommand {
     DaemonInfo {
         #[arg(short, long)]
         json: bool,
+
+        #[command(flatten)]
+        oci_args: OciArgs,
     },
     #[command(alias = "du")]
     DiskUsage {
         #[arg(short, long)]
         json: bool,
+
+        #[command(flatten)]
+        oci_args: OciArgs,
     },
     ListWorkers {
         #[arg(short, long)]
         json: bool,
+
+        #[command(flatten)]
+        oci_args: OciArgs,
     },
 
     /// Tmp for testing
@@ -33,8 +45,8 @@ pub(crate) enum DebugCommand {
 impl DebugCommand {
     pub(crate) async fn run(self) -> anyhow::Result<()> {
         match self {
-            DebugCommand::DaemonInfo { json } => {
-                let mut client = Client::connect().await?;
+            DebugCommand::DaemonInfo { json, oci_args } => {
+                let mut client = Client::connect(oci_args.oci_backend()).await?;
                 let info = client.info().await?;
 
                 if json {
@@ -51,22 +63,20 @@ impl DebugCommand {
                     });
 
                     println!("{}", serde_json::to_string_pretty(&info)?);
+                } else if let Some(buildkit_version) = info.buildkit_version {
+                    println!(
+                        "{} {} {} {}",
+                        "Buildkit version:".bold(),
+                        buildkit_version.version,
+                        buildkit_version.package,
+                        buildkit_version.revision
+                    );
                 } else {
-                    if let Some(buildkit_version) = info.buildkit_version {
-                        println!(
-                            "{} {} {} {}",
-                            "Buildkit version:".bold(),
-                            buildkit_version.version,
-                            buildkit_version.package,
-                            buildkit_version.revision
-                        );
-                    } else {
-                        anyhow::bail!("Buildkit version not found");
-                    }
+                    anyhow::bail!("Buildkit version not found");
                 }
             }
-            DebugCommand::DiskUsage { json } => {
-                let mut client = Client::connect().await?;
+            DebugCommand::DiskUsage { json, oci_args } => {
+                let mut client = Client::connect(oci_args.oci_backend()).await?;
                 let usage = client.disk_usage().await?;
 
                 if json {
@@ -124,8 +134,8 @@ impl DebugCommand {
                     println!("{}: {total_size}", "Total size".bold());
                 }
             }
-            DebugCommand::ListWorkers { json } => {
-                let mut client = Client::connect().await?;
+            DebugCommand::ListWorkers { oci_args, .. } => {
+                let mut client = Client::connect(oci_args.oci_backend()).await?;
                 let workers = client.list_workers().await?;
                 dbg!(workers);
             }
@@ -141,7 +151,7 @@ impl DebugCommand {
 
                 let definition: Definition = Definition::new(command.output(0));
 
-                let mut client = Client::connect().await?;
+                let mut client = Client::connect(OciBackend::Docker).await?;
                 let res = client
                     .solve(SolveOptions {
                         id: "123".into(),
@@ -149,7 +159,7 @@ impl DebugCommand {
                     })
                     .await;
 
-                dbg!(res);
+                dbg!(res).unwrap();
             }
         }
 
