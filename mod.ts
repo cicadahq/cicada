@@ -94,7 +94,7 @@ export interface StepOptions {
   secrets?: Secret[];
 
   /**
-   * The working directory where this job should run.
+   * The directory where the step should run.
    */
   workingDirectory?: FilePath;
 }
@@ -140,7 +140,7 @@ export interface JobOptions {
   cacheDirectories?: CacheDirectories;
 
   /**
-   * The working directory where this job should run
+   * The directory where the job should run
    */
   workingDirectory?: FilePath;
 
@@ -223,14 +223,15 @@ export class Pipeline {
 }
 
 /**
- * A secret is an encrypted variable. Secrets are not cached and are therefore safer to use than environment variables.
+ * A secret is a more secure environment variable. Secrets are not cached whereas env variables are.
  *
- * Create a secret by referencing the corresponding secret key in your Cicada Dashboard
+ * First, create your secret key-value in the Cicada dashboard (cicada.build). Then access that secret in code doing the following.
  *
  * @example
  * ```
- * var gh_token = new Secret("github-secret-key")
+ * var gh_token = new Secret.value("github-secret-key")
  * ```
+ * github-secret-key is the name of the key for my secret stored in Cicada's dashboard.
  */
 export class Secret {
   static readonly #isInJob = Deno.env.has("CICADA_JOB");
@@ -261,7 +262,7 @@ export class Secret {
   };
 
   /**
-   * Get a secret value from the secrets directory asyncrhronously. The secret is only available during the job if it is specified in the job options.
+   * Get a secret value from the secrets directory asynchronously.
    * This is an asynchronous version of {@linkcode valueSync()}.
    *
    * @returns The secret value
@@ -277,7 +278,7 @@ export class Secret {
   }
 
   /**
-   * Get a secret value from the secrets directory syncrhonously. The secret is only available during the job if it is specified in the job options.
+   * Get a secret value from the secrets directory synchronously.
    * This is a synchronous version of {@linkcode value()}.
    *
    * @returns The secret value
