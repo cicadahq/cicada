@@ -46,7 +46,8 @@ impl DebugCommand {
     pub(crate) async fn run(self) -> anyhow::Result<()> {
         match self {
             DebugCommand::DaemonInfo { json, oci_args } => {
-                let mut client = Client::connect(oci_args.oci_backend()).await?;
+                let mut client =
+                    Client::connect(oci_args.oci_backend(), "cicada-buildkitd".into()).await?;
                 let info = client.info().await?;
 
                 if json {
@@ -76,7 +77,8 @@ impl DebugCommand {
                 }
             }
             DebugCommand::DiskUsage { json, oci_args } => {
-                let mut client = Client::connect(oci_args.oci_backend()).await?;
+                let mut client =
+                    Client::connect(oci_args.oci_backend(), "cicada-buildkitd".into()).await?;
                 let usage = client.disk_usage().await?;
 
                 if json {
@@ -135,7 +137,8 @@ impl DebugCommand {
                 }
             }
             DebugCommand::ListWorkers { oci_args, .. } => {
-                let mut client = Client::connect(oci_args.oci_backend()).await?;
+                let mut client =
+                    Client::connect(oci_args.oci_backend(), "cicada-buildkitd".into()).await?;
                 let workers = client.list_workers().await?;
                 dbg!(workers);
             }
@@ -151,7 +154,8 @@ impl DebugCommand {
 
                 let definition: Definition = Definition::new(command.output(0));
 
-                let mut client = Client::connect(OciBackend::Docker).await?;
+                let mut client =
+                    Client::connect(OciBackend::Docker, "cicada-buildkitd".into()).await?;
                 let res = client
                     .solve(SolveOptions {
                         id: "123".into(),

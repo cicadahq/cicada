@@ -589,7 +589,7 @@ impl Commands {
                                         .env(
                                             "BUILDKIT_HOST",
                                             format!(
-                                                "{}-container://buildkitd",
+                                                "{}-container://cicada-buildkitd",
                                                 oci_backend.as_str()
                                             ),
                                         )
