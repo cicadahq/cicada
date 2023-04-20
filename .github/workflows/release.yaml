@@ -160,27 +160,12 @@ jobs:
     needs: release
     steps:
       - uses: actions/checkout@master
-      - name: Set version
-        id: version
-        shell: bash
-        run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            version=${{ github.event.inputs.version }}
-          else
-            version=${{ github.ref_name }}
-          fi
-          echo "version=$version" >> $GITHUB_OUTPUT
-          echo "no_prefix_version=${version#v}" >> $GITHUB_OUTPUT
       - name: Publish to NPM
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          version=${{ steps.version.outputs.version }}
-          echo "version=$version"
-
           cd packages/cicada
           echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
-          npm version ${version#v}
           npm publish
 
   docker-release:
