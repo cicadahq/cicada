@@ -1,5 +1,6 @@
+mod bin_deps;
 mod dag;
-mod deno;
+mod debug;
 mod git;
 mod job;
 mod logging;
@@ -36,8 +37,8 @@ use tokio::{
 };
 
 use crate::{
+    bin_deps::deno_exe,
     dag::{invert_graph, topological_sort, Node},
-    deno::deno_exe,
     git::github_repo,
     job::{OnFail, Pipeline},
 };
@@ -313,8 +314,8 @@ enum Commands {
         #[arg(long, default_value = "docker", env = "CICADA_OCI_BACKEND")]
         oci_backend: OciBackend,
     },
-    #[command(hide = true)]
-    Debug { pipeline: PathBuf, job: usize },
+    #[command(subcommand)]
+    Debug(debug::DebugCommand),
 }
 
 impl Commands {
@@ -878,7 +879,7 @@ impl Commands {
                 runtime_checks(&oci_backend).await;
                 info!("\nAll checks passed!");
             }
-            Commands::Debug { pipeline, job } => todo!("{pipeline:?} {job}"),
+            Commands::Debug(debug_command) => debug_command.run().await?,
         }
 
         Ok(())

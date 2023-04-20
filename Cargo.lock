@@ -211,9 +211,8 @@ dependencies = [
 [[package]]
 name = "buildkit-rs"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#c34f57e4415026939867ec6a72ae9f11c96f06eb"
 dependencies = [
- "buildkit-rs-frontend",
+ "buildkit-rs-client",
  "buildkit-rs-ignore",
  "buildkit-rs-llb",
  "buildkit-rs-proto",
@@ -222,17 +221,23 @@ dependencies = [
 ]
 
 [[package]]
-name = "buildkit-rs-frontend"
+name = "buildkit-rs-client"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#c34f57e4415026939867ec6a72ae9f11c96f06eb"
 dependencies = [
+ "buildkit-rs-llb",
+ "buildkit-rs-proto",
+ "pin-project",
+ "thiserror",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
  "tonic",
+ "tower",
 ]
 
 [[package]]
 name = "buildkit-rs-ignore"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#c34f57e4415026939867ec6a72ae9f11c96f06eb"
 dependencies = [
  "path-clean",
  "thiserror",
@@ -241,7 +246,6 @@ dependencies = [
 [[package]]
 name = "buildkit-rs-llb"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#c34f57e4415026939867ec6a72ae9f11c96f06eb"
 dependencies = [
  "buildkit-rs-proto",
  "buildkit-rs-reference",
@@ -255,7 +259,6 @@ dependencies = [
 [[package]]
 name = "buildkit-rs-proto"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#c34f57e4415026939867ec6a72ae9f11c96f06eb"
 dependencies = [
  "prost",
  "prost-build",
@@ -267,7 +270,6 @@ dependencies = [
 [[package]]
 name = "buildkit-rs-reference"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#c34f57e4415026939867ec6a72ae9f11c96f06eb"
 dependencies = [
  "once_cell",
  "regex",
@@ -277,7 +279,6 @@ dependencies = [
 [[package]]
 name = "buildkit-rs-util"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#c34f57e4415026939867ec6a72ae9f11c96f06eb"
 
 [[package]]
 name = "bumpalo"
@@ -330,6 +331,7 @@ dependencies = [
  "clap_complete",
  "dirs",
  "dotenvy",
+ "flate2",
  "futures",
  "indicatif",
  "once_cell",
@@ -343,6 +345,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "shlex",
+ "tar",
  "tempfile",
  "time",
  "tokio",
@@ -2076,6 +2079,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ce8c33a8d48bd45d624a6e523445fd21ec13d3653cd51f681abf67418f54eb8"
 dependencies = [
  "cfg-if",
+ "log",
  "pin-project-lite",
  "tracing-attributes",
  "tracing-core",

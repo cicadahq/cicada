@@ -4,7 +4,7 @@ use camino::Utf8PathBuf;
 use serde::{Deserialize, Serialize};
 use tracing::error;
 
-use crate::{deno::DENO_VERSION, git::Github};
+use crate::{bin_deps::DENO_VERSION, git::Github};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
