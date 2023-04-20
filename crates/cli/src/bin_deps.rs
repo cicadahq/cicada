@@ -317,12 +317,14 @@ pub async fn buildctl_exe() -> anyhow::Result<PathBuf> {
 mod tests {
     use super::*;
 
+    #[ignore = "We dont have deno in CI"]
     #[tokio::test]
     async fn deno_version() {
         deno_version_req();
         dbg!(path_deno_version().await.unwrap());
     }
 
+    #[ignore = "We dont have buildctl in CI"]
     #[tokio::test]
     async fn buildctl_version() {
         buildctl_version_req();
