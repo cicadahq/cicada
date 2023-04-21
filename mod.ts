@@ -228,14 +228,14 @@ export class Pipeline {
  * To use:
  *  - CLI: ceate a .env file or use the `--secret` flag.
  *  - Dashboard: create your secret key-value in the [Cicada dashboard](https://cicada.build)
- * 
+ *
  * To access to secret in code doing the following:
  *
  * @example
  * ```
  * var gh_token = new Secret.value("github-secret-key")
  * ```
- * 
+ *
  * `github-secret-key` is the name of the key for my secret stored in the .env file or in the cicada dashboard
  */
 export class Secret {
@@ -268,7 +268,7 @@ export class Secret {
 
   /**
    * Get a secret value from the secrets directory asynchronously.
-   * 
+   *
    * This is an asynchronous version of {@linkcode valueSync()}.
    *
    * @returns The secret value
@@ -285,7 +285,7 @@ export class Secret {
 
   /**
    * Get a secret value from the secrets directory synchronously.
-   * 
+   *
    * This is a synchronous version of {@linkcode value()}.
    *
    * @returns The secret value
