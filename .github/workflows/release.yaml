@@ -39,8 +39,7 @@ jobs:
           - target: x86_64-pc-windows-msvc
             archive: tar.gz
             os: windows-latest
-            # TODO: add back managed-bins
-            features: telemetry,self-update
+            features: telemetry,self-update,managed-bins
 
     steps:
       - uses: actions/checkout@master

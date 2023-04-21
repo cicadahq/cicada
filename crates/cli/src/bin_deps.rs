@@ -246,7 +246,10 @@ pub async fn download_buildctl_exe() -> anyhow::Result<PathBuf> {
         .output()
         .await?;
 
-    let buildctl_path = tempdir.path().join("bin").join("buildctl");
+    let buildctl_path = tempdir.path().join("bin").join(match std::env::consts::OS {
+        "windows" => "buildctl.exe",
+        _ => "buildctl",
+    });
 
     // Print the contents of the archive
     Command::new("ls")

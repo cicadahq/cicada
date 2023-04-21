@@ -43,11 +43,6 @@ once_cell = "1.17.1"
 open = "4.0.2"
 owo-colors = { version = "3.5.0", features = ["supports-colors"] }
 regex = "1.8.0"
-reqwest = { version = "0.11.16", default-features = false, features = [
-    "json",
-    "rustls",
-    "socks",
-] }
 self_update = { version = "0.36.0", default-features = false, features = [
     "archive-tar",
     "compression-flate2",
@@ -81,3 +76,17 @@ uuid = { version = "1.3.0", features = ["v4", "serde"] }
 zip = { version = "0.6.4", default-features = false, features = [
     "deflate",
 ], optional = true }
+
+[target.'cfg(not(target_os = "windows"))'.dependencies]
+reqwest = { version = "0.11.16", default-features = false, features = [
+    "json",
+    "rustls",
+    "socks",
+] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+reqwest = { version = "0.11.16", default-features = false, features = [
+    "default-tls",
+    "json",
+    "socks",
+] }
