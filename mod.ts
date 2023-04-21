@@ -226,7 +226,7 @@ export class Pipeline {
  * A secret is a secure variable, secrets are not cached whereas env variables are.
  *
  * To use:
- *  - CLI: ceate a .env file or use the `--secret` flag.
+ *  - CLI: create a .env file or use the `--secret` flag.
  *  - Dashboard: create your secret key-value in the [Cicada dashboard](https://cicada.build)
  *
  * To access to secret in code doing the following:
