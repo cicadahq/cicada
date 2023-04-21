@@ -24,7 +24,7 @@ jobs:
       - name: Lint Deno Module
         run: deno lint
       - name: Check Deno Module
-        run: deno check mod.ts
+        run: deno check --all ./lib/deps.ts
 
   test-rust:
     strategy:
