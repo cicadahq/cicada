@@ -36,8 +36,9 @@ multiple-versions = "warn"
 wildcards = "allow"
 highlight = "all"
 
-[[bans.deny]]
-name = "openssl"
+# Windows uses openssl now, should still not be on other platforms
+# [[bans.deny]]
+# name = "openssl"
 
 # this is mistaken for tempfile sometimes
 [[bans.deny]]
