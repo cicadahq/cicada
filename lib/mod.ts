@@ -1,9 +1,9 @@
 /**
- * mod.ts
+ * # Cicada
  *
- * This is the main entry point for the cicada library.
+ * Write CI/CD pipelines in TypeScript
  *
- * Get started with a simple pipeline:
+ * ## Get started with a simple pipeline
  *
  * ```ts
  * import { Job, Pipeline } from "https://deno.land/x/cicada/mod.ts";
@@ -20,6 +20,7 @@
  * ```
  *
  * For more information, see the [Cicada documentation](https://cicada.run/docs).
+ *
  * @module
  */
 
