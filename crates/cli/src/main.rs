@@ -314,6 +314,10 @@ enum Commands {
     Update,
     /// List all available completions
     Completions { shell: clap_complete::Shell },
+    Open {
+        /// Pipeline to open
+        pipeline: PathBuf,
+    },
     #[command(hide = true)]
     Doctor {
         #[command(flatten)]
@@ -936,6 +940,13 @@ impl Commands {
                     &mut std::io::stdout(),
                 );
             }
+            Commands::Open { pipeline } => {
+                let resolved_pipeline = resolve_pipeline(pipeline)?;
+                match std::env::var("EDITOR") {
+                    Ok(editor) => open::with(resolved_pipeline, &editor)?,
+                    Err(_) => open::that(resolved_pipeline)?,
+                }
+            }
             Commands::Doctor { oci_args } => {
                 info!("Checking for common problems...");
                 runtime_checks(&oci_args.oci_backend()).await;
@@ -956,6 +967,7 @@ impl Commands {
             Commands::New { .. } => "new",
             Commands::Update => "update",
             Commands::Completions { .. } => "completions",
+            Commands::Open { .. } => "open",
             Commands::Doctor { .. } => "doctor",
             Commands::Debug { .. } => "debug",
         }
@@ -970,6 +982,7 @@ impl Commands {
             Commands::New { .. } => true,
             Commands::Update => true,
             Commands::Completions { .. } => false,
+            Commands::Open { .. } => false,
             Commands::Doctor { .. } => true,
             Commands::Debug { .. } => false,
         }
