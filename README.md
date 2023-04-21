@@ -1,6 +1,6 @@
-# Cicada
+# [Cicada](https://cicada.build)
 
-> [Cicada](https://cicada.build): Write CI/CD pipelines in TypeScript
+**Write CI/CD pipelines in TypeScript**
 
 ## Pipelines, Jobs, and Steps
 
@@ -15,7 +15,8 @@
 
 ![image](https://user-images.githubusercontent.com/4949076/229649044-b385b525-946e-4a86-a66d-773547770105.png)
 
-**Example**\
+#### **Example**
+
 You have a Pipeline called "Tests". It has jobs called "Cypress" and
 "Playwright" that execute in separate containers. Each job has multiple steps
 for cloning your code, installing the testing framework, and executing the tests
@@ -24,15 +25,12 @@ for cloning your code, installing the testing framework, and executing the tests
 
 ### 1. Dependencies
 
-- Deno -
-  [Installation Guide](https://deno.land/manual@v1.32.1/getting_started/installation)
 - Docker (at least version 23.0) -
   [Installation Guide](https://docs.docker.com/desktop/)
 
 #### MacOS Quickstart
 
 ```bash
-brew install deno
 brew install --cask docker
 ```
 
@@ -49,7 +47,7 @@ curl -fSsL https://raw.githubusercontent.com/cicadahq/cicada/main/download.sh | 
 Go to the project you want to make a pipeline for and run:
 
 ```bash
-cicada init <pipeline-name>
+cicada init
 ```
 
 ### 4. Run the pipeline
@@ -70,7 +68,6 @@ Add the following to your `.vscode/settings.json`
 
 ```json
 {
-  "deno.enable": true,
   "deno.enablePaths": [".cicada"]
 }
 ```
