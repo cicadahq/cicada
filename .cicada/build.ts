@@ -8,7 +8,7 @@ const env = {
 
 const muslJob = new Job({
   name: "Build musl",
-  image: "rust:1.63",
+  image: "rust:latest",
   env,
   steps: [
     "apt-get update && apt-get install -y musl-tools protobuf-compiler",

@@ -202,10 +202,13 @@ impl Step {
         use buildkit_rs::llb::*;
 
         let mut exec = match &self.run {
-            StepRun::Command { command } => {
-                Exec::shlex(format!("bash -c {}", shlex::quote(command)))
-            }
-            StepRun::DenoFunction => Exec::shlex(format!("cicada step {job_index} {step_index}")),
+            StepRun::Command { command } => Exec::new(["/bin/sh", "-c", command]),
+            StepRun::DenoFunction => Exec::new([
+                "cicada",
+                "step",
+                &job_index.to_string(),
+                &step_index.to_string(),
+            ]),
         }
         .with_mount(root_mount);
 
@@ -420,19 +423,20 @@ impl Job {
         ))
         .with_platform(Platform::LINUX_AMD64);
 
-        let deno_cp = Exec::shlex("cp /deno-mnt/deno /usr/local/bin/deno")
+        let deno_cp = Exec::new(["cp", "/deno-mnt/deno", "/usr/local/bin/deno"])
             .with_mount(Mount::layer(image.output(), "/", 0))
             .with_mount(Mount::layer_readonly(deno_image.output(), "/deno-mnt"))
             .with_custom_name("Install Deno");
 
-        let cicada_cp = Exec::shlex("cp /cicada-mnt/cicada /usr/local/bin/cicada")
+        let cicada_cp = Exec::new(["cp", "/cicada-mnt/cicada", "/usr/local/bin/cicada"])
             .with_mount(Mount::layer(deno_cp.output(0), "/", 0))
             .with_mount(Mount::layer_readonly(cicada_image.output(), "/cicada-mnt"))
             .with_custom_name("Install Cicada");
 
-        let local_cp = Exec::shlex(format!(
-            "/bin/sh -c 'mkdir -p {working_directory} && cp -r /local/. {working_directory}'"
-        ))
+        let local_cp = Exec::shell(
+            "/bin/sh",
+            format!("mkdir -p {working_directory} && cp -r /local/. {working_directory}"),
+        )
         .with_mount(Mount::layer(cicada_cp.output(0), "/", 0))
         .with_mount(Mount::layer_readonly(local.output(), "/local"))
         .with_custom_name("Copy local files");
