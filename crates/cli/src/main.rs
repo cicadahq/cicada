@@ -584,8 +584,8 @@ impl Commands {
                         tokio::spawn(
                             async move {
                                 let mut child = if buildkit_experimental {
-                                    let mut buildctl = Command::new(buildctl_exe)
-                                        // .arg("--debug")
+                                    let mut buildctl = Command::new(buildctl_exe);
+                                    buildctl
                                         .arg("build")
                                         .arg("--local")
                                         .arg(format!("local={}", project_directory.display()))
@@ -597,7 +597,14 @@ impl Commands {
                                                 "{}-container://cicada-buildkitd",
                                                 oci_backend.as_str()
                                             ),
-                                        )
+                                        );
+
+                                    for (key, _) in &all_secrets {
+                                        buildctl.arg("--secret").arg(format!("id={key}"));
+                                    }
+
+                                    let mut buildctl_child = buildctl
+                                        .envs(all_secrets)
                                         .stdin(Stdio::piped())
                                         .stdout(Stdio::piped())
                                         .stderr(Stdio::piped())
@@ -610,11 +617,11 @@ impl Commands {
                                         job_index,
                                     );
 
-                                    let mut stdin = buildctl.stdin.take().unwrap();
+                                    let mut stdin = buildctl_child.stdin.take().unwrap();
                                     stdin.write_all(&llb_vec).in_current_span().await?;
                                     stdin.shutdown().in_current_span().await?;
 
-                                    buildctl
+                                    buildctl_child
                                 } else {
                                     let tag = format!("cicada-{}", job.image);
 
@@ -637,7 +644,10 @@ impl Commands {
                                     }
 
                                     for (key, _) in &all_secrets {
-                                        args.extend(["--secret".into(), format!("id={key}")]);
+                                        args.extend([
+                                            "--secret".into(),
+                                            format!("id={key},env={key}"),
+                                        ]);
                                     }
 
                                     args.push("-".into());
