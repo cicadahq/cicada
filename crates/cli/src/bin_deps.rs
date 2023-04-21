@@ -238,7 +238,7 @@ pub async fn download_buildctl_exe() -> anyhow::Result<PathBuf> {
 
     let tempdir = tempfile::tempdir()?;
 
-    Command::new("tar")
+    let output = Command::new("tar")
         .arg("xzf")
         .arg(tempfile.path())
         .arg("-C")
@@ -246,30 +246,19 @@ pub async fn download_buildctl_exe() -> anyhow::Result<PathBuf> {
         .output()
         .await?;
 
+    if !output.status.success() {
+        anyhow::bail!(
+            "Failed to extract buildctl archive: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
     let buildctl_path = tempdir.path().join("bin").join(match std::env::consts::OS {
         "windows" => "buildctl.exe",
         _ => "buildctl",
     });
 
-    // Print the contents of the archive
-    Command::new("ls")
-        .arg("-l")
-        .arg(&buildctl_path)
-        .spawn()?
-        .wait()
-        .await?;
-
-    // #[cfg(unix)]
-    // {
-    //     use std::os::unix::fs::PermissionsExt;
-    //     let mut perms = std::fs::metadata(&managed_buildctl_exe)?.permissions();
-    //     perms.set_mode(0o755);
-    //     std::fs::set_permissions(&managed_buildctl_exe, perms)?;
-    // }
-
     tokio::fs::copy(buildctl_path, &managed_buildctl_exe).await?;
-
-    drop(tempdir);
 
     spinner.finish_and_clear();
     eprintln!("✅ Installed buildctl v{BUILDCTL_VERSION}");

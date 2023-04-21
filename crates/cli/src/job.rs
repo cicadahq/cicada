@@ -423,6 +423,7 @@ impl Job {
         ))
         .with_platform(Platform::LINUX_AMD64);
 
+        // TODO: replace all the cp and mkdir with native llb commands, this was just quick and dirty
         let deno_cp = Exec::new(["cp", "/deno-mnt/deno", "/usr/local/bin/deno"])
             .with_mount(Mount::layer(image.output(), "/", 0))
             .with_mount(Mount::layer_readonly(deno_image.output(), "/deno-mnt"))
