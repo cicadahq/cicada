@@ -239,5 +239,5 @@ jobs:
           commit_username: Grant
           commit_email: grant@fig.io
           ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
-          commit_message: ${{ github.event.ref }}
+          commit_message: ${{ github.event.inputs.version }}
           force_push: "true"
