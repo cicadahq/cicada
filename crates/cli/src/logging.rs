@@ -31,9 +31,8 @@ struct EventVisitor {
 
 impl Visit for EventVisitor {
     fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
-        match field.name() == "message" {
-            true => write!(&mut self.output, "{value:?}").ok(),
-            false => write!(&mut self.output, "  {}={:?}", field.name(), value).ok(),
+        if field.name() == "message" {
+            write!(&mut self.output, "{value:?}").ok();
         };
     }
 }
