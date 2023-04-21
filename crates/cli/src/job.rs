@@ -255,17 +255,10 @@ impl Step {
             ));
         }
 
-        // TODO: we are not supporting secrets yet as the buildctl makes it hard
-        // for secret in &self.secrets {
-        //     exec = exec.with_mount(buildkit_rs::llb::Mount::secret(
-        //         secret,
-        //         format!("/run/secrets/{secret}"),
-        //         0,
-        //         0,
-        //         0o600,
-        //         false,
-        //     ));
-        // }
+        for secret in &self.secrets {
+            let dest = Utf8PathBuf::from("/run/secrets").join(secret);
+            exec = exec.with_mount(Mount::secret(dest, secret, 0, 0, 0o600, false));
+        }
 
         // Set the environment variables
         exec = exec.with_env(

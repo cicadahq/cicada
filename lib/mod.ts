@@ -88,7 +88,7 @@ export interface StepOptions {
   env?: Record<string, string>;
 
   /**
-   * Secrets to expose specifically for this step. Secrets are accessible in the run function via `secret.value()` or via the `/var/run/secrets` directory.
+   * Secrets to expose specifically for this step. Secrets are accessible in the run function via `secret.value()` or via the `/run/secrets` directory.
    *
    * Use secrets rather than env for greater security in job runs and caching.
    */
