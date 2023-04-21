@@ -299,8 +299,7 @@ enum Commands {
         #[command(flatten)]
         oci_args: OciArgs,
 
-        /// Use the new experimental buildkit backend, this requires the
-        /// buildkit daemon to be running as `buildkitd` and the `buildctl` CLI
+        /// Use the new experimental buildkit backend
         #[arg(long)]
         buildkit_experimental: bool,
     },
