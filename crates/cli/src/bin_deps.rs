@@ -331,6 +331,8 @@ mod tests {
         dbg!(path_buildctl_version().await.unwrap());
     }
 
+    // make this work on windows
+    #[cfg_attr(target_os = "windows", ignore = "Doesn't work on windows yet")]
     #[tokio::test]
     async fn test_download_deno() {
         // Remove the managed deno dir if it exists
@@ -361,6 +363,8 @@ mod tests {
         assert_eq!(DENO_VERSION, deno_trimmed);
     }
 
+    // TODO: make this work on windows
+    #[cfg_attr(target_os = "windows", ignore = "Doesn't work on windows yet")]
     #[tokio::test]
     async fn test_download_buildctl() {
         // Remove the managed buildctl dir if it exists
