@@ -1,6 +1,6 @@
 {
   "name": "@cicadahq/cicada",
-  "version": "0.1.36",
+  "version": "0.1.37",
   "description": "Cicada is a next-generation CI framework using TypeScript",
   "repository": {
     "type": "git",
