@@ -943,7 +943,7 @@ impl Commands {
             Commands::Open { pipeline } => {
                 let resolved_pipeline = resolve_pipeline(pipeline)?;
                 match std::env::var("EDITOR") {
-                    Ok(editor) => open::with(resolved_pipeline, &editor)?,
+                    Ok(editor) => open::with(resolved_pipeline, editor)?,
                     Err(_) => open::that(resolved_pipeline)?,
                 }
             }
