@@ -473,6 +473,8 @@ impl Commands {
                     }
                 }
 
+                info!(trigger = true);
+
                 if buildkit_experimental {
                     let inspect_output = Command::new(oci_backend.as_str())
                         .args(["inspect", "cicada-buildkitd", "--type", "container"])
