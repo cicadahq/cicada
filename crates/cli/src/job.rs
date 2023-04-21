@@ -438,7 +438,7 @@ impl Job {
             .with_custom_name("Install Cicada");
 
         let local_cp = Exec::shlex(format!(
-            "/bin/sh -c 'mkdir -p {working_directory} && cp -r /local/* {working_directory}'"
+            "/bin/sh -c 'mkdir -p {working_directory} && cp -r /local/. {working_directory}'"
         ))
         .with_mount(Mount::layer(cicada_cp.output(0), "/", 0))
         .with_mount(Mount::layer_readonly(local.output(), "/local"))
