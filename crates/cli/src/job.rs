@@ -414,14 +414,18 @@ impl Job {
         }
 
         let image = Image::new(&self.image)
+            .with_platform(Platform::LINUX_AMD64)
             .with_custom_name(self.name.clone().unwrap())
             .with_resolve_mode(ResolveMode::Local);
 
-        let deno_image = Image::new(format!("docker.io/denoland/deno:bin-{DENO_VERSION}"));
+        let deno_image = Image::new(format!("docker.io/denoland/deno:bin-{DENO_VERSION}"))
+            .with_platform(Platform::LINUX_AMD64);
+
         let cicada_image = Image::new(format!(
             "docker.io/cicadahq/cicada-bin:{}",
             env!("CARGO_PKG_VERSION")
-        ));
+        ))
+        .with_platform(Platform::LINUX_AMD64);
 
         let deno_cp = Exec::shlex("cp /deno-mnt/deno /usr/local/bin/deno")
             .with_mount(Mount::layer(image.output(), "/", 0))
