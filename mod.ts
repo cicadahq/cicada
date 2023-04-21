@@ -87,7 +87,7 @@ export interface StepOptions {
   env?: Record<string, string>;
 
   /**
-   * Secrets to expose specifically for this step. Secrets are accessible in the run param. using the the `getSecret()` function or via the `/var/run/secrets` directory.
+   * Secrets to expose specifically for this step. Secrets are accessible in the run function via `secret.value()` or via the `/var/run/secrets` directory.
    *
    * Use secrets rather than env for greater security in job runs and caching.
    */
@@ -223,15 +223,20 @@ export class Pipeline {
 }
 
 /**
- * A secret is a more secure environment variable. Secrets are not cached whereas env variables are.
+ * A secret is a secure variable, secrets are not cached whereas env variables are.
  *
- * First, create your secret key-value in the Cicada dashboard (cicada.build). Then access that secret in code doing the following.
+ * To use:
+ *  - CLI: ceate a .env file or use the `--secret` flag.
+ *  - Dashboard: create your secret key-value in the [Cicada dashboard](https://cicada.build)
+ * 
+ * To access to secret in code doing the following:
  *
  * @example
  * ```
  * var gh_token = new Secret.value("github-secret-key")
  * ```
- * github-secret-key is the name of the key for my secret stored in Cicada's dashboard.
+ * 
+ * `github-secret-key` is the name of the key for my secret stored in the .env file or in the cicada dashboard
  */
 export class Secret {
   static readonly #isInJob = Deno.env.has("CICADA_JOB");
@@ -239,7 +244,7 @@ export class Secret {
   #path = "";
 
   /**
-   * Creates a new Secret instance.
+   * Creates a new Secret instance
    *
    * @param name - The name of the secret.
    */
@@ -263,6 +268,7 @@ export class Secret {
 
   /**
    * Get a secret value from the secrets directory asynchronously.
+   * 
    * This is an asynchronous version of {@linkcode valueSync()}.
    *
    * @returns The secret value
@@ -279,6 +285,7 @@ export class Secret {
 
   /**
    * Get a secret value from the secrets directory synchronously.
+   * 
    * This is a synchronous version of {@linkcode value()}.
    *
    * @returns The secret value
