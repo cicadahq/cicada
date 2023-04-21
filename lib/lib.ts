@@ -10,5 +10,6 @@
 export * from "https://deno.land/x/cicada/mod.ts";
 
 console.error(
-  "lib.ts is deprecated, please use https://deno.land/x/cicada/mod.ts instead",
+  "\n⚠️\n⚠️   %cUsing https://deno.land/x/cicada/lib.ts in your pipeline deprecated\n⚠️\n⚠️   Use https://deno.land/x/cicada/mod.ts instead\n⚠️\n",
+  "color: red; font-weight: bold;",
 );
