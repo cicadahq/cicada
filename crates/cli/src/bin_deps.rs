@@ -392,7 +392,7 @@ mod tests {
         let buildctl_version_str = buildctl_version_str.trim();
         let buildctl_version_str = buildctl_version_str.split_whitespace().nth(2).unwrap();
         let buildctl_version_str = buildctl_version_str
-            .strip_prefix("v")
+            .strip_prefix('v')
             .unwrap_or(buildctl_version_str);
 
         assert_eq!(BUILDCTL_VERSION, buildctl_version_str);

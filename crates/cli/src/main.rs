@@ -851,7 +851,7 @@ impl Commands {
                         // Check if deno extension is installed
                         let deno_extension_installed = String::from_utf8_lossy(
                             &Command::new(bin_name)
-                                .args(&["--list-extensions"])
+                                .args(["--list-extensions"])
                                 .output()
                                 .await?
                                 .stdout,
@@ -861,7 +861,7 @@ impl Commands {
                         if !deno_extension_installed {
                             info!("Installing Deno extension for VSCode");
                             Command::new(bin_name)
-                                .args(&["--install-extension", "denoland.vscode-deno"])
+                                .args(["--install-extension", "denoland.vscode-deno"])
                                 .spawn()
                                 .unwrap()
                                 .wait()
