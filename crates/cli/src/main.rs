@@ -799,33 +799,6 @@ impl Commands {
                 #[cfg(feature = "self-update")]
                 check_for_update().await;
 
-                // if std::env::var("TERM_PROGRAM").as_deref() == Ok("vscode") {
-                //     let bin_name = match std::env::var("TERM_PROGRAM_VERSION") {
-                //         Ok(version) if version.contains("insider") => "code-insiders",
-                //         _ => "code",
-                //     };
-
-                //     // Check if deno extension is installed
-                //     let deno_extension_installed = String::from_utf8_lossy(
-                //         &Command::new(bin_name)
-                //             .args(&["--list-extensions"])
-                //             .output()
-                //             .await?
-                //             .stdout,
-                //     )
-                //     .contains("denoland.vscode-deno");
-
-                //     if !deno_extension_installed {
-                //         info!("Installing Deno extension for VSCode");
-                //         Command::new(bin_name)
-                //             .args(&["--install-extension", "denoland.vscode-deno"])
-                //             .spawn()
-                //             .unwrap()
-                //             .wait()
-                //             .await?;
-                //     }
-                // }
-
                 let cicada_dir = PathBuf::from(".cicada");
 
                 if cicada_dir.exists() {
@@ -862,6 +835,54 @@ impl Commands {
                         .interact()?],
                 )
                 .await?;
+
+                if std::env::var("TERM_PROGRAM").as_deref() == Ok("vscode") {
+                    let bin_name = match std::env::var("TERM_PROGRAM_VERSION") {
+                        Ok(version) if version.contains("insider") => "code-insiders",
+                        _ => "code",
+                    };
+
+                    let should_install = dialoguer::Confirm::with_theme(&ColorfulTheme::default())
+                        .with_prompt("Would you like to setup autocomplete for VSCode?")
+                        .default(true)
+                        .interact()?;
+
+                    if should_install {
+                        // Check if deno extension is installed
+                        let deno_extension_installed = String::from_utf8_lossy(
+                            &Command::new(bin_name)
+                                .args(&["--list-extensions"])
+                                .output()
+                                .await?
+                                .stdout,
+                        )
+                        .contains("denoland.vscode-deno");
+
+                        if !deno_extension_installed {
+                            info!("Installing Deno extension for VSCode");
+                            Command::new(bin_name)
+                                .args(&["--install-extension", "denoland.vscode-deno"])
+                                .spawn()
+                                .unwrap()
+                                .wait()
+                                .await?;
+                        }
+
+                        // Check for the .vscode/settings.json file
+                        let settings_path = PathBuf::from(".vscode/settings.json");
+                        if !settings_path.exists() {
+                            info!("Creating VSCode settings file");
+                            std::fs::create_dir_all(".vscode")?;
+                            tokio::fs::write(
+                                &settings_path,
+                                "{\"\n  deno.enablePaths\": [\".cicada\"]\n}",
+                            )
+                            .await?;
+                        } else {
+                            info!("Add the following to your VSCode settings file: \"deno.enablePaths\": [\".cicada\"]");
+                        }
+                    }
+                }
 
                 // Cache deno dependencies
                 if let Ok(mut out) = Command::new("deno")
