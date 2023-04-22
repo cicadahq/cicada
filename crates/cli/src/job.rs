@@ -41,7 +41,7 @@ pub struct CacheDirectory {
 impl CacheDirectory {
     fn to_mount(&self, working_directory: &Utf8PathBuf) -> buildkit_rs::llb::Mount {
         let path = if self.path.is_absolute() {
-            self.path.to_owned()
+            self.path.clone()
         } else {
             working_directory.join(&self.path)
         };
@@ -49,7 +49,7 @@ impl CacheDirectory {
         buildkit_rs::llb::Mount::cache(
             path.clone(),
             path,
-            self.sharing.map(|s| s.into()).unwrap_or_default(),
+            self.sharing.map(Into::into).unwrap_or_default(),
         )
     }
 }
@@ -132,30 +132,28 @@ impl Step {
         .with_mount(root_mount);
 
         // Custom name for the step
-        match (&self.name, &self.run) {
+        exec = match (&self.name, &self.run) {
             (Some(name), StepRun::Command { command }) => {
-                exec = exec.with_custom_name(format!("{name} ({step_index}): {command}"))
+                exec.with_custom_name(format!("{name} ({step_index}): {command}"))
             }
             (Some(name), StepRun::DenoFunction) => {
-                exec = exec.with_custom_name(format!("{name} ({step_index})"))
+                exec.with_custom_name(format!("{name} ({step_index})"))
             }
-            (None, StepRun::Command { command }) => exec = exec.with_custom_name(command.clone()),
-            (None, StepRun::DenoFunction) => {
-                exec = exec.with_custom_name(format!("Step {step_index}"))
-            }
-        }
+            (None, StepRun::Command { command }) => exec.with_custom_name(command.clone()),
+            (None, StepRun::DenoFunction) => exec.with_custom_name(format!("Step {step_index}")),
+        };
 
         // If the step has a working directory, we need to set it
         let working_directory = if let Some(working_directory) = &self.working_directory {
             // This is relative to the parent working directory if it is not absolute
 
             if working_directory.is_absolute() {
-                working_directory.to_owned()
+                working_directory.clone()
             } else {
                 parent_working_directory.join(working_directory)
             }
         } else {
-            parent_working_directory.to_owned()
+            parent_working_directory.clone()
         };
 
         exec = exec.with_cwd(working_directory.clone().into());

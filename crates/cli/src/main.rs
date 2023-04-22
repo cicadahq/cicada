@@ -206,12 +206,11 @@ async fn runtime_checks(oci: &OciBackend) {
 
     // Run docker info to check that docker is running
     match docker_info {
-        Ok(output) => {
-            if !output.status.success() {
-                error!("Docker is not running! Please start it to use Cicada");
-                std::process::exit(1);
-            }
+        Ok(output) if !output.status.success() => {
+            error!("Docker is not running! Please start it to use Cicada");
+            std::process::exit(1);
         }
+        Ok(_) => {}
         Err(_) => {
             error!("Cicada requires Docker to run. Please install it using one of the methods on https://docs.docker.com/engine/install");
             std::process::exit(1);
@@ -242,9 +241,8 @@ pub fn resolve_pipeline(pipeline: impl AsRef<Path>) -> Result<PathBuf> {
         let cicada_dir = pipeline.parent().expect("Could not get parent");
         if cicada_dir.ends_with(".cicada") {
             return Ok(pipeline.canonicalize()?);
-        } else {
-            anyhow::bail!("Pipeline must be in the .cicada directory");
         }
+        anyhow::bail!("Pipeline must be in the .cicada directory");
     }
 
     let cicada_dir = resolve_cicada_dir()?;
@@ -490,7 +488,17 @@ impl Commands {
                     .output()
                     .await?;
 
-                if !inspect_output.status.success() {
+                if inspect_output.status.success() {
+                    let containers: serde_json::Value =
+                        serde_json::from_slice(&inspect_output.stdout)?;
+
+                    if containers["State"]["Status"] != "running" {
+                        Command::new(oci_backend.as_str())
+                            .args(["start", "cicada-buildkitd"])
+                            .status()
+                            .await?;
+                    }
+                } else {
                     Command::new(oci_backend.as_str())
                         .args([
                             "run",
@@ -502,16 +510,6 @@ impl Commands {
                         ])
                         .status()
                         .await?;
-                } else {
-                    let containers: serde_json::Value =
-                        serde_json::from_slice(&inspect_output.stdout)?;
-
-                    if containers["State"]["Status"] != "running" {
-                        Command::new(oci_backend.as_str())
-                            .args(["start", "cicada-buildkitd"])
-                            .status()
-                            .await?;
-                    }
                 }
 
                 // Populate the jobs with `docker inspect` data
@@ -577,12 +575,11 @@ impl Commands {
                     eprintln!();
                 }
 
-                let mut jobs = HashMap::from_iter(
-                    populated_jobs
-                        .into_iter()
-                        .enumerate()
-                        .map(|(index, job)| (job.job.uuid, (index, job))),
-                );
+                let mut jobs = populated_jobs
+                    .into_iter()
+                    .enumerate()
+                    .map(|(index, job)| (job.job.uuid, (index, job)))
+                    .collect::<HashMap<_, _>>();
 
                 let mut all_secrets: Vec<(String, String)> = vec![];
 
@@ -629,7 +626,7 @@ impl Commands {
 
                 let nodes: Vec<Node> = jobs
                     .values()
-                    .map(|(_, job)| Node::new(job.job.uuid, job.job.depends_on.to_vec()))
+                    .map(|(_, job)| Node::new(job.job.uuid, job.job.depends_on.clone()))
                     .collect();
                 let graph = topological_sort(&invert_graph(&nodes))?;
 
@@ -820,9 +817,9 @@ impl Commands {
                         "Cicada directory already exists, run {} to create a new pipeline",
                         "cicada new".bold()
                     );
-                } else {
-                    std::fs::create_dir(&cicada_dir)?;
                 }
+
+                std::fs::create_dir(&cicada_dir)?;
 
                 let pipeline_name = match pipeline {
                     Some(pipeline) => pipeline,
@@ -884,7 +881,9 @@ impl Commands {
 
                         // Check for the .vscode/settings.json file
                         let settings_path = PathBuf::from(".vscode/settings.json");
-                        if !settings_path.exists() {
+                        if settings_path.exists() {
+                            info!("Add the following to your VSCode settings file: \"deno.enablePaths\": [\".cicada\"]");
+                        } else {
                             info!("Creating VSCode settings file");
                             std::fs::create_dir_all(".vscode")?;
                             tokio::fs::write(
@@ -892,8 +891,6 @@ impl Commands {
                                 "{\"\n  deno.enablePaths\": [\".cicada\"]\n}",
                             )
                             .await?;
-                        } else {
-                            info!("Add the following to your VSCode settings file: \"deno.enablePaths\": [\".cicada\"]");
                         }
                     }
                 }
