@@ -120,7 +120,7 @@ export interface StepOptions {
 
   /**
    * The shell to use for running the command. This can be `bash`, `sh`, or {@link ShellOptions}.
-   * 
+   *
    * @default "sh"
    */
   shell?: Shell;
