@@ -96,6 +96,15 @@ pub enum Trigger {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[serde(tag = "type")]
+pub enum Shell {
+    Sh,
+    Bash,
+    Args { args: Vec<String> },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(tag = "type")]
 pub enum StepRun {
     Command { command: String },
     DenoFunction,
@@ -114,6 +123,7 @@ pub struct Step {
     #[serde(default)]
     pub secrets: Vec<String>,
     pub working_directory: Option<Utf8PathBuf>,
+    pub shell: Option<Shell>,
 }
 
 impl Step {
@@ -202,10 +212,21 @@ impl Step {
         use buildkit_rs::llb::*;
 
         let mut exec = match &self.run {
-            StepRun::Command { command } => {
-                Exec::shlex(format!("bash -c {}", shlex::quote(command)))
-            }
-            StepRun::DenoFunction => Exec::shlex(format!("cicada step {job_index} {step_index}")),
+            StepRun::Command { command } => match &self.shell {
+                Some(Shell::Sh) | None => Exec::new(["/bin/sh", "-c", command]),
+                Some(Shell::Bash) => Exec::new(["/bin/bash", "-c", command]),
+                Some(Shell::Args { args }) => {
+                    let mut args = args.clone();
+                    args.push(command.clone());
+                    Exec::new(args)
+                }
+            },
+            StepRun::DenoFunction => Exec::new([
+                "cicada",
+                "step",
+                &job_index.to_string(),
+                &step_index.to_string(),
+            ]),
         }
         .with_mount(root_mount);
 
@@ -295,7 +316,29 @@ pub struct Job {
     pub on_fail: Option<OnFail>,
 }
 
-impl Job {
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct InspectInfo {
+    config: InspectConfig,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct InspectConfig {
+    pub hostname: String,
+    pub domainname: String,
+    pub user: String,
+    pub env: Vec<String>,
+    pub cmd: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct JobResolved {
+    pub job: Box<Job>,
+    pub image_info: Box<InspectInfo>,
+}
+
+impl JobResolved {
     /// This converts the job into a dockerfile definition, the plan is to convert this into
     /// a direct llb definition in the future
     pub fn to_dockerfile(
@@ -317,7 +360,7 @@ impl Job {
             ));
         }
 
-        lines.push(format!("FROM --platform=linux/amd64 {}", self.image));
+        lines.push(format!("FROM --platform=linux/amd64 {}", self.job.image));
         lines.push("ENV CI=true".into());
 
         lines.push("COPY --from=cicada-bin /cicada /usr/local/bin/cicada".into());
@@ -325,6 +368,7 @@ impl Job {
 
         // Make working directory
         let working_directory = self
+            .job
             .working_directory
             .clone()
             .unwrap_or_else(|| Utf8PathBuf::from("/app"));
@@ -337,7 +381,7 @@ impl Job {
         lines.push(format!("WORKDIR {working_directory}"));
 
         // Set the env for the steps
-        for (key, value) in &self.env {
+        for (key, value) in &self.job.env {
             lines.push(format!("ENV {}={}", shlex::quote(key), shlex::quote(value)));
         }
 
@@ -350,9 +394,9 @@ impl Job {
         }
 
         // Run the steps
-        for (step_index, step) in self.steps.iter().enumerate() {
+        for (step_index, step) in self.job.steps.iter().enumerate() {
             lines.extend(step.to_dockerfile_lines(
-                &self.cache_directories,
+                &self.job.cache_directories,
                 &working_directory,
                 job_index,
                 step_index,
@@ -373,6 +417,7 @@ impl Job {
         use buildkit_rs::llb::*;
 
         let working_directory = self
+            .job
             .working_directory
             .clone()
             .unwrap_or_else(|| Utf8PathBuf::from("/app"));
@@ -406,9 +451,9 @@ impl Job {
             }
         }
 
-        let image = Image::new(&self.image)
+        let image = Image::new(&self.job.image)
             .with_platform(Platform::LINUX_AMD64)
-            .with_custom_name(self.name.clone().unwrap())
+            .with_custom_name(self.job.name.clone().unwrap())
             .with_resolve_mode(ResolveMode::Local);
 
         let deno_image = Image::new(format!("docker.io/denoland/deno:bin-{DENO_VERSION}"))
@@ -420,42 +465,45 @@ impl Job {
         ))
         .with_platform(Platform::LINUX_AMD64);
 
-        let deno_cp = Exec::shlex("cp /deno-mnt/deno /usr/local/bin/deno")
+        // TODO: replace all the cp and mkdir with native llb commands, this was just quick and dirty
+        let deno_cp = Exec::new(["cp", "/deno-mnt/deno", "/usr/local/bin/deno"])
             .with_mount(Mount::layer(image.output(), "/", 0))
             .with_mount(Mount::layer_readonly(deno_image.output(), "/deno-mnt"))
             .with_custom_name("Install Deno");
 
-        let cicada_cp = Exec::shlex("cp /cicada-mnt/cicada /usr/local/bin/cicada")
+        let cicada_cp = Exec::new(["cp", "/cicada-mnt/cicada", "/usr/local/bin/cicada"])
             .with_mount(Mount::layer(deno_cp.output(0), "/", 0))
             .with_mount(Mount::layer_readonly(cicada_image.output(), "/cicada-mnt"))
             .with_custom_name("Install Cicada");
 
-        let local_cp = Exec::shlex(format!(
-            "/bin/sh -c 'mkdir -p {working_directory} && cp -r /local/. {working_directory}'"
-        ))
+        let local_cp = Exec::shell(
+            "/bin/sh",
+            format!("mkdir -p {working_directory} && cp -r /local/. {working_directory}"),
+        )
         .with_mount(Mount::layer(cicada_cp.output(0), "/", 0))
         .with_mount(Mount::layer_readonly(local.output(), "/local"))
         .with_custom_name("Copy local files");
 
-        let mut env = vec![
+        let mut env = self.image_info.config.env.clone();
+
+        env.extend([
             "CI=1".into(),
             format!("CICADA_PIPELINE_FILE={working_directory}/.cicada/{module_name}",),
             "CICADA_JOB=1".into(),
-            // TODO: we need to grab the env from the image and add it to this
-        ];
+        ]);
 
         if let Some(github_repository) = github {
             env.push(format!("GITHUB_REPOSITORY={github_repository}"));
         }
 
         let mut prev_step = Arc::new(local_cp);
-        for (step_index, step) in self.steps.iter().enumerate() {
+        for (step_index, step) in self.job.steps.iter().enumerate() {
             let output = MultiOwnedOutput::output(&prev_step, 0);
             let root = Mount::layer(output, "/", 0);
 
             let exec = Arc::new(step.to_exec(
                 root,
-                &self.cache_directories,
+                &self.job.cache_directories,
                 &working_directory,
                 &env,
                 job_index,
@@ -471,14 +519,15 @@ impl Job {
     }
 
     pub fn display_name(&self, index: usize) -> String {
-        self.name
+        self.job
+            .name
             .clone()
-            .unwrap_or_else(|| format!("{}-{index}", self.image))
+            .unwrap_or_else(|| format!("{}-{index}", self.job.image))
     }
 
     pub fn long_name(&self, index: usize) -> String {
-        let image = &self.image;
-        match &self.name {
+        let image = &self.job.image;
+        match &self.job.name {
             Some(name) => format!("{name} ({image}-{index})"),
             None => format!("{image}-{index}"),
         }

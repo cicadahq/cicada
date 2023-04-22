@@ -53,6 +53,25 @@ export interface CacheDirectoryOptions {
 export type CacheDirectories = (FilePath | CacheDirectoryOptions)[];
 
 /**
+ * The options to configure a shell
+ *
+ * @example
+ * ```ts
+ * const shell: ShellOptions = {
+ *  args: ["/bin/bash", "-c"]
+ * }
+ * ```
+ */
+export interface ShellOptions {
+  args: string[];
+}
+
+/**
+ * The shell to use for running a command. This can be a string or a {@link ShellOptions shell options object}.
+ */
+export type Shell = "bash" | "sh" | ShellOptions;
+
+/**
  * A step function that can return void or a number and can be synchronous or asynchronous.
  */
 export type StepFn = () => void | Promise<void> | number | Promise<number>;
@@ -98,6 +117,13 @@ export interface StepOptions {
    * The directory where the step should run.
    */
   workingDirectory?: FilePath;
+
+  /**
+   * The shell to use for running the command. This can be `bash`, `sh`, or {@link ShellOptions}.
+   *
+   * @default "sh"
+   */
+  shell?: Shell;
 }
 
 /**

@@ -290,9 +290,9 @@ source = "git+https://github.com/cicadahq/buildkit-rs.git#6da9f8f81de19b8e2b92b3
 
 [[package]]
 name = "bumpalo"
-version = "3.12.0"
+version = "3.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0d261e256854913907f67ed06efbc3338dfe6179796deefc1ff763fc1aee5535"
+checksum = "9b1ce199063694f33ffb7dd4e0ee620741495c32833cde5aa08f02a0bf96f0c8"
 
 [[package]]
 name = "byteorder"
@@ -333,6 +333,7 @@ version = "0.1.40"
 dependencies = [
  "ahash",
  "anyhow",
+ "base64 0.21.0",
  "buildkit-rs",
  "camino",
  "clap",

@@ -57,6 +57,13 @@ pub enum TrackEvent {
 }
 
 impl TrackEvent {
+    fn name(&self) -> &'static str {
+        match self {
+            TrackEvent::SubcommandExecuted { .. } => "Subcommand Executed",
+            TrackEvent::PipelineExecuted { .. } => "Pipeline Executed",
+        }
+    }
+
     pub async fn post(self) -> Result<reqwest::Response> {
         let segment_write_key = SEGMENT_WRITE_KEY.context("No segment write key found")?;
 
@@ -64,65 +71,57 @@ impl TrackEvent {
             .to_owned()
             .context("failed to acquire user id")?;
 
-        let (event, mut properties) = match self {
-            TrackEvent::SubcommandExecuted { subcommand_name } => (
-                "subcommand_executed".into(),
+        let event_name = self.name().to_owned();
+
+        let mut properties: Map<String, Value> = match self {
+            TrackEvent::SubcommandExecuted { subcommand_name } => {
                 [("subcommand_name".to_owned(), Value::String(subcommand_name))]
                     .into_iter()
-                    .collect::<Map<String, Value>>(),
-            ),
+                    .collect()
+            }
             TrackEvent::PipelineExecuted {
                 pipeline_name,
                 pipeline_length,
-            } => (
-                "pipeline_executed".into(),
-                [
-                    (
-                        "pipeline_name_hash".to_owned(),
-                        digest(
-                            format!(
-                                "{}{pipeline_name}",
-                                (*SEGMENT_SALT)
-                                    .to_owned()
-                                    .context("failed to acquire salt")?
-                            )
-                            .as_bytes(),
+            } => [
+                (
+                    "pipeline_name_hash".into(),
+                    digest(
+                        format!(
+                            "{}{pipeline_name}",
+                            (*SEGMENT_SALT)
+                                .to_owned()
+                                .context("failed to acquire salt")?
                         )
-                        .into(),
-                    ),
-                    ("pipeline_length".to_owned(), pipeline_length.into()),
-                    (
-                        "gh_actions".to_owned(),
-                        std::env::var_os("GITHUB_ACTIONS").is_some().into(),
-                    ),
-                    (
-                        "vercel".to_owned(),
-                        std::env::var_os("VERCEL").is_some().into(),
-                    ),
-                    (
-                        "circle_ci".to_owned(),
-                        std::env::var_os("CIRCLECI").is_some().into(),
-                    ),
-                    (
-                        "gitlab".to_owned(),
-                        std::env::var_os("GITLAB_CI").is_some().into(),
-                    ),
-                    (
-                        "travis".to_owned(),
-                        std::env::var_os("TRAVIS").is_some().into(),
-                    ),
-                    (
-                        "jenkins".to_owned(),
-                        std::env::var_os("JENKINS_URL").is_some().into(),
-                    ),
-                    (
-                        "azure".to_owned(),
-                        std::env::var_os("BUILD_BUILDURI").is_some().into(),
-                    ),
-                ]
-                .into_iter()
-                .collect::<Map<String, Value>>(),
-            ),
+                        .as_bytes(),
+                    )
+                    .into(),
+                ),
+                ("pipeline_length".into(), pipeline_length.into()),
+                (
+                    "gh_actions".into(),
+                    std::env::var_os("GITHUB_ACTIONS").is_some().into(),
+                ),
+                ("vercel".into(), std::env::var_os("VERCEL").is_some().into()),
+                (
+                    "circle_ci".into(),
+                    std::env::var_os("CIRCLECI").is_some().into(),
+                ),
+                (
+                    "gitlab".into(),
+                    std::env::var_os("GITLAB_CI").is_some().into(),
+                ),
+                ("travis".into(), std::env::var_os("TRAVIS").is_some().into()),
+                (
+                    "jenkins".into(),
+                    std::env::var_os("JENKINS_URL").is_some().into(),
+                ),
+                (
+                    "azure".into(),
+                    std::env::var_os("BUILD_BUILDURI").is_some().into(),
+                ),
+            ]
+            .into_iter()
+            .collect(),
         };
 
         // Insert the default properties (os, architecture, environment, cli_version)
@@ -149,7 +148,7 @@ impl TrackEvent {
             .basic_auth::<_, &str>(segment_write_key, None)
             .json(&Track {
                 anonymous_id,
-                event,
+                event: event_name,
                 properties,
                 timestamp,
             })
