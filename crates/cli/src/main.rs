@@ -645,7 +645,7 @@ impl Commands {
                         let pipeline_file_name = pipeline_file_name.to_os_string();
                         let project_directory = project_directory.to_path_buf();
                         let all_secrets = all_secrets.clone();
-                        // TODO: Add back bootstraping the local cicada image
+                        // TODO: Add back bootstrapping the local cicada image
                         let _cicada_bin_tag = cicada_bin_tag.clone();
                         let buildctl_exe = buildctl_exe.clone();
 
