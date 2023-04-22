@@ -42,7 +42,7 @@ use crate::{
     bin_deps::{buildctl_exe, deno_exe},
     dag::{invert_graph, topological_sort, Node},
     git::github_repo,
-    job::{OnFail, Pipeline},
+    job::{InspectInfo, JobResolved, OnFail, Pipeline},
 };
 
 // Transform from https://deno.land/x/cicada/mod.ts to https://deno.land/x/cicada@vX.Y.X/mod.ts
@@ -302,6 +302,10 @@ enum Commands {
         /// Use the new experimental buildkit backend
         #[arg(long)]
         buildkit_experimental: bool,
+
+        /// Disable caching
+        #[arg(long, requires = "buildkit_experimental")]
+        no_cache: bool,
     },
     /// Run a step in a cicada workflow
     #[command(hide = true)]
@@ -339,6 +343,7 @@ impl Commands {
                 cicada_dockerfile,
                 oci_args,
                 buildkit_experimental,
+                no_cache,
             } => {
                 let oci_backend = oci_args.oci_backend();
 
@@ -480,7 +485,14 @@ impl Commands {
 
                 if buildkit_experimental {
                     let inspect_output = Command::new(oci_backend.as_str())
-                        .args(["inspect", "cicada-buildkitd", "--type", "container"])
+                        .args([
+                            "inspect",
+                            "cicada-buildkitd",
+                            "--type",
+                            "container",
+                            "--format",
+                            "{{json .}}",
+                        ])
                         .output()
                         .await?;
 
@@ -497,10 +509,10 @@ impl Commands {
                             .status()
                             .await?;
                     } else {
-                        let containers: Vec<serde_json::Value> =
+                        let containers: serde_json::Value =
                             serde_json::from_slice(&inspect_output.stdout)?;
 
-                        if containers[0]["State"]["Status"] != "running" {
+                        if containers["State"]["Status"] != "running" {
                             Command::new(oci_backend.as_str())
                                 .args(["start", "cicada-buildkitd"])
                                 .status()
@@ -509,12 +521,74 @@ impl Commands {
                     }
                 }
 
+                // Populate the jobs with `docker inspect` data
+                let mut populated_jobs: Vec<JobResolved> = vec![];
+                for job in pipeline.jobs {
+                    let resolved_image_name = buildkit_rs::reference::Reference::parse(&job.image)
+                        .with_context(|| {
+                            format!(
+                                "Unable to parse image name: {}",
+                                job.image.to_string().bold()
+                            )
+                        })?;
+
+                    info!("Pulling image: {}", resolved_image_name.to_string().bold());
+
+                    // Run pull to grab the image
+                    let mut pull_child = Command::new(oci_backend.as_str())
+                        .args([
+                            "pull",
+                            &resolved_image_name.to_string(),
+                            "--platform",
+                            "linux/amd64",
+                        ])
+                        .spawn()?;
+
+                    if !pull_child.wait().await?.success() {
+                        anyhow::bail!(
+                            "Unable to pull image: {}",
+                            resolved_image_name.to_string().bold()
+                        );
+                    }
+
+                    // Run inspect to grab the image info
+                    let docker_inspect_output = Command::new(oci_backend.as_str())
+                        .args([
+                            "inspect",
+                            &resolved_image_name.to_string(),
+                            "--type",
+                            "image",
+                            "--format",
+                            "{{json .}}",
+                        ])
+                        .output()
+                        .await?;
+
+                    if !docker_inspect_output.status.success() {
+                        anyhow::bail!(
+                            "Unable to inspect image: {}",
+                            resolved_image_name.to_string().bold()
+                        );
+                    }
+
+                    // Deserialize the image info
+                    let image_info: InspectInfo =
+                        serde_json::from_slice(&docker_inspect_output.stdout)
+                            .context("Unable to deserialize image info")?;
+
+                    populated_jobs.push(JobResolved {
+                        job: Box::new(job),
+                        image_info: Box::new(image_info),
+                    });
+
+                    eprintln!();
+                }
+
                 let mut jobs = HashMap::from_iter(
-                    pipeline
-                        .jobs
+                    populated_jobs
                         .into_iter()
                         .enumerate()
-                        .map(|(index, job)| (job.uuid, (index, job))),
+                        .map(|(index, job)| (job.job.uuid, (index, job))),
                 );
 
                 let mut all_secrets: Vec<(String, String)> = vec![];
@@ -562,7 +636,7 @@ impl Commands {
 
                 let nodes: Vec<Node> = jobs
                     .values()
-                    .map(|(_, job)| Node::new(job.uuid, job.depends_on.to_vec()))
+                    .map(|(_, job)| Node::new(job.job.uuid, job.job.depends_on.to_vec()))
                     .collect();
                 let graph = topological_sort(&invert_graph(&nodes))?;
 
@@ -599,6 +673,10 @@ impl Commands {
                                             ),
                                         );
 
+                                    if no_cache {
+                                        buildctl.arg("--no-cache");
+                                    }
+
                                     for (key, _) in &all_secrets {
                                         buildctl.arg("--secret").arg(format!("id={key}"));
                                     }
@@ -623,7 +701,7 @@ impl Commands {
 
                                     buildctl_child
                                 } else {
-                                    let tag = format!("cicada-{}", job.image);
+                                    let tag = format!("cicada-{}", job.job.image);
 
                                     let mut args: Vec<String> = vec![
                                         "buildx".into(),
@@ -764,7 +842,7 @@ impl Commands {
                         Ok(results) => {
                             for result in results {
                                 match result {
-                                    Ok((long_name, exit_status, job)) => match job.on_fail {
+                                    Ok((long_name, exit_status, job)) => match job.job.on_fail {
                                         Some(OnFail::Ignore) if !exit_status.success() => {
                                             warn!("{long_name} failed with status {exit_status} but was ignored");
                                         }

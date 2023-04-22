@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::Context;
 use anyhow::Result;
+use base64::prelude::*;
 use sha2::{Digest, Sha256};
 
 /// Data is something persisted between installs
@@ -18,8 +19,10 @@ pub fn data_path() -> Result<PathBuf> {
 }
 
 #[allow(dead_code)]
-pub fn digest(bytes: &[u8]) -> Vec<u8> {
+/// A base64 encoded sha256 digest
+pub fn digest(bytes: &[u8]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(bytes);
-    hasher.finalize().to_vec()
+    let bytes = hasher.finalize().to_vec();
+    BASE64_STANDARD.encode(bytes)
 }

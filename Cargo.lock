@@ -333,6 +333,7 @@ version = "0.1.40"
 dependencies = [
  "ahash",
  "anyhow",
+ "base64 0.21.0",
  "buildkit-rs",
  "camino",
  "clap",

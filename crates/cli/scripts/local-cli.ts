@@ -2,6 +2,7 @@ import {
   CacheDirectoryOptions,
   FilePath,
   Pipeline,
+  Shell,
   Step,
   StepFn,
   Trigger,
@@ -59,6 +60,15 @@ type SerializedRun =
     type: "denoFunction";
   };
 
+type SerializedShell = {
+  type: "bash";
+} | {
+  type: "sh";
+} | {
+  type: "args";
+  args: string[];
+};
+
 type SerializedJob = {
   uuid: string;
   image: string;
@@ -79,6 +89,24 @@ type SerializedStep = {
   env: Record<string, string> | undefined;
   secrets: string[] | undefined;
   workingDirectory: string | undefined;
+  shell: SerializedShell | undefined;
+};
+
+const serializeShell = (shell: Shell): SerializedShell => {
+  if (shell === "bash") {
+    return {
+      type: "bash",
+    };
+  } else if (shell === "sh") {
+    return {
+      type: "sh",
+    };
+  } else {
+    return {
+      type: "args",
+      args: shell.args,
+    };
+  }
 };
 
 const serializeRun = (run: string | StepFn): SerializedRun => {
@@ -106,6 +134,7 @@ const serializeStep = (step: Step): SerializedStep => {
       env: undefined,
       secrets: undefined,
       workingDirectory: undefined,
+      shell: undefined,
     };
   } else {
     return {
@@ -116,6 +145,7 @@ const serializeStep = (step: Step): SerializedStep => {
       cacheDirectories: step.cacheDirectories?.map(mapCache),
       ignoreCache: step.ignoreCache,
       workingDirectory: step.workingDirectory,
+      shell: step.shell ? serializeShell(step.shell) : undefined,
     };
   }
 };
