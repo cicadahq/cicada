@@ -688,6 +688,7 @@ impl Commands {
                                 let mut stdin = buildctl_child.stdin.take().unwrap();
                                 stdin.write_all(&llb_vec).in_current_span().await?;
                                 stdin.shutdown().in_current_span().await?;
+                                drop(stdin);
 
                                 // Print the output as it comes in
                                 let stdout = buildctl_child.stdout.take().unwrap();
