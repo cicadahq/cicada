@@ -211,7 +211,7 @@ dependencies = [
 [[package]]
 name = "buildkit-rs"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#6da9f8f81de19b8e2b92b365fbd033997801363a"
+source = "git+https://github.com/cicadahq/buildkit-rs.git#1b61a7c9edfd622e7044d8d180f6370c6fdc1d3b"
 dependencies = [
  "buildkit-rs-client",
  "buildkit-rs-ignore",
@@ -224,7 +224,7 @@ dependencies = [
 [[package]]
 name = "buildkit-rs-client"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#6da9f8f81de19b8e2b92b365fbd033997801363a"
+source = "git+https://github.com/cicadahq/buildkit-rs.git#1b61a7c9edfd622e7044d8d180f6370c6fdc1d3b"
 dependencies = [
  "buildkit-rs-llb",
  "buildkit-rs-proto",
@@ -241,7 +241,7 @@ dependencies = [
 [[package]]
 name = "buildkit-rs-ignore"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#6da9f8f81de19b8e2b92b365fbd033997801363a"
+source = "git+https://github.com/cicadahq/buildkit-rs.git#1b61a7c9edfd622e7044d8d180f6370c6fdc1d3b"
 dependencies = [
  "path-clean",
  "thiserror",
@@ -250,7 +250,7 @@ dependencies = [
 [[package]]
 name = "buildkit-rs-llb"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#6da9f8f81de19b8e2b92b365fbd033997801363a"
+source = "git+https://github.com/cicadahq/buildkit-rs.git#1b61a7c9edfd622e7044d8d180f6370c6fdc1d3b"
 dependencies = [
  "buildkit-rs-proto",
  "buildkit-rs-reference",
@@ -264,7 +264,7 @@ dependencies = [
 [[package]]
 name = "buildkit-rs-proto"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#6da9f8f81de19b8e2b92b365fbd033997801363a"
+source = "git+https://github.com/cicadahq/buildkit-rs.git#1b61a7c9edfd622e7044d8d180f6370c6fdc1d3b"
 dependencies = [
  "prost",
  "prost-build",
@@ -276,7 +276,7 @@ dependencies = [
 [[package]]
 name = "buildkit-rs-reference"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#6da9f8f81de19b8e2b92b365fbd033997801363a"
+source = "git+https://github.com/cicadahq/buildkit-rs.git#1b61a7c9edfd622e7044d8d180f6370c6fdc1d3b"
 dependencies = [
  "once_cell",
  "regex",
@@ -286,7 +286,7 @@ dependencies = [
 [[package]]
 name = "buildkit-rs-util"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#6da9f8f81de19b8e2b92b365fbd033997801363a"
+source = "git+https://github.com/cicadahq/buildkit-rs.git#1b61a7c9edfd622e7044d8d180f6370c6fdc1d3b"
 
 [[package]]
 name = "bumpalo"
@@ -343,6 +343,7 @@ dependencies = [
  "dotenvy",
  "flate2",
  "futures",
+ "humansize",
  "indicatif",
  "once_cell",
  "open",
@@ -886,6 +887,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c4a1e36c821dbe04574f602848a19f742f4fb3c98d40449f11bcad18d6b17421"
 
 [[package]]
+name = "humansize"
+version = "2.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6cb51c9a029ddc91b07a787f1d86b53ccfa49b0e86688c946ebe8d3555685dd7"
+dependencies = [
+ "libm",
+]
+
+[[package]]
 name = "hyper"
 version = "0.14.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1077,6 +1087,12 @@ name = "libc"
 version = "0.2.142"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a987beff54b60ffa6d51982e1aa1146bc42f19bd26be28b0586f252fccf5317"
+
+[[package]]
+name = "libm"
+version = "0.2.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "348108ab3fba42ec82ff6e9564fc4ca0247bdccdc68dd8af9764bbc79c3c8ffb"
 
 [[package]]
 name = "libz-sys"
@@ -2368,9 +2384,9 @@ dependencies = [
 
 [[package]]
 name = "tracing-subscriber"
-version = "0.3.16"
+version = "0.3.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a6176eae26dd70d0c919749377897b54a9276bd7061339665dd68777926b5a70"
+checksum = "30a651bc37f915e81f087d86e62a18eec5f79550c7faff886f7090b4ea757c77"
 dependencies = [
  "matchers",
  "nu-ansi-term",

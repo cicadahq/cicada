@@ -218,16 +218,19 @@ pub struct Job {
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct InspectInfo {
+    #[serde(default)]
     config: InspectConfig,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct InspectConfig {
-    pub hostname: String,
-    pub domainname: String,
-    pub user: String,
+    pub hostname: Option<String>,
+    pub domainname: Option<String>,
+    pub user: Option<String>,
+    #[serde(default)]
     pub env: Vec<String>,
+    #[serde(default)]
     pub cmd: Vec<String>,
 }
 
@@ -240,11 +243,11 @@ pub struct JobResolved {
 impl JobResolved {
     pub fn to_llb(
         &self,
-        module_name: &str,
-        project_directory: &Path,
+        module_name: impl AsRef<str>,
+        project_directory: impl AsRef<Path>,
         github: &Option<Github>,
         job_index: usize,
-        // bootstrap: bool,
+        cicada_image: Option<impl Into<String>>,
     ) -> Vec<u8> {
         use buildkit_rs::llb::*;
 
@@ -258,7 +261,7 @@ impl JobResolved {
 
         // Try to load excludes from `.cicadaignore`, `.containerignore`, `.dockerignore` in that order
         for ignore_name in &[".cicadaignore", ".containerignore", ".dockerignore"] {
-            let ignore_path = project_directory.join(ignore_name);
+            let ignore_path = project_directory.as_ref().join(ignore_name);
             if ignore_path.is_file() {
                 // Read the file, strip comments and empty lines
                 let ignore_file = match std::fs::File::open(ignore_path) {
@@ -291,10 +294,13 @@ impl JobResolved {
         let deno_image = Image::new(format!("docker.io/denoland/deno:bin-{DENO_VERSION}"))
             .with_platform(Platform::LINUX_AMD64);
 
-        let cicada_image = Image::new(format!(
-            "docker.io/cicadahq/cicada-bin:{}",
-            env!("CARGO_PKG_VERSION")
-        ))
+        let cicada_image = match cicada_image {
+            Some(cicada_image) => Image::local(cicada_image.into()),
+            None => Image::new(format!(
+                "docker.io/cicadahq/cicada-bin:{}",
+                env!("CARGO_PKG_VERSION")
+            )),
+        }
         .with_platform(Platform::LINUX_AMD64);
 
         // TODO: replace all the cp and mkdir with native llb commands, this was just quick and dirty
@@ -320,7 +326,10 @@ impl JobResolved {
 
         env.extend([
             "CI=1".into(),
-            format!("CICADA_PIPELINE_FILE={working_directory}/.cicada/{module_name}",),
+            format!(
+                "CICADA_PIPELINE_FILE={working_directory}/.cicada/{}",
+                module_name.as_ref()
+            ),
             "CICADA_JOB=1".into(),
         ]);
 

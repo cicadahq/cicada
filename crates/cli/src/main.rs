@@ -30,7 +30,7 @@ use tracing::{error, info, info_span, warn, Instrument};
 use update::check_for_update;
 use url::Url;
 
-use ahash::HashMap;
+use ahash::{HashMap, HashMapExt};
 use clap::Parser;
 use owo_colors::{OwoColorize, Stream};
 use tokio::{
@@ -39,7 +39,7 @@ use tokio::{
 };
 
 use crate::{
-    bin_deps::{buildctl_exe, deno_exe},
+    bin_deps::{buildctl_exe, deno_exe, BUILDKIT_VERSION},
     dag::{invert_graph, topological_sort, Node},
     git::github_repo,
     job::{InspectInfo, JobResolved, OnFail, Pipeline},
@@ -359,8 +359,11 @@ impl Commands {
                 let deno_exe = deno_exe().await?;
                 let buildctl_exe = buildctl_exe().await?;
 
-                let cicada_bin_tag = if let Some(cicada_dockerfile) = cicada_dockerfile {
-                    let tag = format!("cicada-bin:{}", env!("CARGO_PKG_VERSION"));
+                let cicada_image = if let Some(cicada_dockerfile) = cicada_dockerfile {
+                    let tag = format!(
+                        "docker.io/cicadahq/cicada-bin:{}-dev",
+                        env!("CARGO_PKG_VERSION")
+                    );
 
                     info!("Building cicada bootstrap image...\n");
 
@@ -493,27 +496,39 @@ impl Commands {
                         serde_json::from_slice(&inspect_output.stdout)?;
 
                     if containers["State"]["Status"] != "running" {
+                        info!("Starting buildkitd container...\n");
+
                         Command::new(oci_backend.as_str())
                             .args(["start", "cicada-buildkitd"])
                             .status()
                             .await?;
                     }
                 } else {
-                    Command::new(oci_backend.as_str())
+                    info!("Starting buildkitd container...\n");
+
+                    let output = Command::new(oci_backend.as_str())
                         .args([
                             "run",
                             "-d",
                             "--name",
                             "cicada-buildkitd",
                             "--privileged",
-                            "moby/buildkit:latest",
+                            &format!("docker.io/moby/buildkit:{BUILDKIT_VERSION}"),
                         ])
-                        .status()
+                        .output()
                         .await?;
+
+                    if !output.status.success() {
+                        anyhow::bail!(
+                            "Unable to start buildkitd container: {}",
+                            String::from_utf8_lossy(&output.stderr)
+                        );
+                    }
                 }
 
                 // Populate the jobs with `docker inspect` data
                 let mut populated_jobs: Vec<JobResolved> = vec![];
+                let mut image_info_map: HashMap<String, InspectInfo> = HashMap::new();
                 for job in pipeline.jobs {
                     let resolved_image_name = buildkit_rs::reference::Reference::parse(&job.image)
                         .with_context(|| {
@@ -522,57 +537,68 @@ impl Commands {
                                 job.image.to_string().bold()
                             )
                         })?;
+                    let resolved_image_name_str = resolved_image_name.to_string();
 
-                    info!("Pulling image: {}", resolved_image_name.to_string().bold());
+                    let image_info = match image_info_map.get(&resolved_image_name_str) {
+                        Some(inspect_info) => inspect_info.clone(),
+                        None => {
+                            info!("Pulling image: {}", resolved_image_name_str.bold());
 
-                    // Run pull to grab the image
-                    let mut pull_child = Command::new(oci_backend.as_str())
-                        .args([
-                            "pull",
-                            &resolved_image_name.to_string(),
-                            "--platform",
-                            "linux/amd64",
-                        ])
-                        .spawn()?;
+                            // Run pull to grab the image
+                            let mut pull_child = Command::new(oci_backend.as_str())
+                                .args([
+                                    "pull",
+                                    &resolved_image_name_str,
+                                    "--platform",
+                                    "linux/amd64",
+                                ])
+                                .spawn()?;
 
-                    if !pull_child.wait().await?.success() {
-                        anyhow::bail!(
-                            "Unable to pull image: {}",
-                            resolved_image_name.to_string().bold()
-                        );
-                    }
+                            if !pull_child.wait().await?.success() {
+                                anyhow::bail!(
+                                    "Unable to pull image: {}",
+                                    resolved_image_name_str.bold()
+                                );
+                            }
 
-                    // Run inspect to grab the image info
-                    let docker_inspect_output = Command::new(oci_backend.as_str())
-                        .args([
-                            "inspect",
-                            &resolved_image_name.to_string(),
-                            "--type",
-                            "image",
-                            "--format",
-                            "{{json .}}",
-                        ])
-                        .output()
-                        .await?;
+                            eprintln!();
 
-                    if !docker_inspect_output.status.success() {
-                        anyhow::bail!(
-                            "Unable to inspect image: {}",
-                            resolved_image_name.to_string().bold()
-                        );
-                    }
+                            // Run inspect to grab the image info
+                            let docker_inspect_output = Command::new(oci_backend.as_str())
+                                .args([
+                                    "inspect",
+                                    &resolved_image_name_str,
+                                    "--type",
+                                    "image",
+                                    "--format",
+                                    "{{json .}}",
+                                ])
+                                .output()
+                                .await?;
 
-                    // Deserialize the image info
-                    let image_info: InspectInfo =
-                        serde_json::from_slice(&docker_inspect_output.stdout)
-                            .context("Unable to deserialize image info")?;
+                            if !docker_inspect_output.status.success() {
+                                anyhow::bail!(
+                                    "Unable to inspect image: {}",
+                                    resolved_image_name_str.bold()
+                                );
+                            }
+
+                            // Deserialize the image info
+                            let image_info: InspectInfo =
+                                serde_json::from_slice(&docker_inspect_output.stdout)
+                                    .context("Unable to deserialize image info")?;
+
+                            image_info_map
+                                .insert(resolved_image_name_str.clone(), image_info.clone());
+
+                            image_info
+                        }
+                    };
 
                     populated_jobs.push(JobResolved {
                         job: Box::new(job),
                         image_info: Box::new(image_info),
                     });
-
-                    eprintln!();
                 }
 
                 let mut jobs = populated_jobs
@@ -642,8 +668,7 @@ impl Commands {
                         let pipeline_file_name = pipeline_file_name.to_os_string();
                         let project_directory = project_directory.to_path_buf();
                         let all_secrets = all_secrets.clone();
-                        // TODO: Add back bootstrapping the local cicada image
-                        let _cicada_bin_tag = cicada_bin_tag.clone();
+                        let cicada_image = cicada_image.clone();
                         let buildctl_exe = buildctl_exe.clone();
 
                         tokio::spawn(
@@ -683,6 +708,7 @@ impl Commands {
                                     &project_directory,
                                     &gh_repo,
                                     job_index,
+                                    cicada_image,
                                 );
 
                                 let mut stdin = buildctl_child.stdin.take().unwrap();
