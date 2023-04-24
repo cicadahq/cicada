@@ -880,7 +880,7 @@ impl Commands {
                 )
                 .await?;
 
-                if std::env::var("TERM_PROGRAM").as_deref() == Ok("vscode") {
+                if cfg!(not(windows)) && std::env::var("TERM_PROGRAM").as_deref() == Ok("vscode") {
                     let bin_name = match std::env::var("TERM_PROGRAM_VERSION") {
                         Ok(version) if version.contains("insider") => "code-insiders",
                         _ => "code",
