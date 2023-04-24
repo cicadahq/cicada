@@ -178,8 +178,9 @@ export interface JobOptions {
 
   /**
    * What to do if the job fails.
-   * - `ignore` - ignore the failure and continue the pipeline
-   * - `stop` - stop the pipeline
+   * - `ignore` - ignore the failure and continue steps in the job
+   * - `stop` - stop the job
+   * @default "stop"
    */
   onFail?: "ignore" | "stop";
 }
