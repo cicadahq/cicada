@@ -884,7 +884,7 @@ impl Commands {
                 )
                 .await?;
 
-                if cfg!(not(windows)) && std::env::var("TERM_PROGRAM").as_deref() == Ok("vscode") {
+                if !cfg!(windows) {
                     let bin_name = match std::env::var("TERM_PROGRAM_VERSION") {
                         Ok(version) if version.contains("insider") => "code-insiders",
                         _ => "code",
@@ -896,24 +896,35 @@ impl Commands {
                         .interact()?;
 
                     if should_install {
-                        // Check if deno extension is installed
-                        let deno_extension_installed = String::from_utf8_lossy(
-                            &Command::new(bin_name)
-                                .args(["--list-extensions"])
-                                .output()
-                                .await?
-                                .stdout,
-                        )
-                        .contains("denoland.vscode-deno");
+                        let output = Command::new(bin_name)
+                            .args(["--list-extensions"])
+                            .output()
+                            .await;
 
-                        if !deno_extension_installed {
-                            info!("Installing Deno extension for VSCode");
-                            Command::new(bin_name)
-                                .args(["--install-extension", "denoland.vscode-deno"])
-                                .spawn()
-                                .unwrap()
-                                .wait()
-                                .await?;
+                        match output {
+                            Ok(output) => {
+                                // Check if deno extension is installed
+                                let deno_extension_installed =
+                                    String::from_utf8_lossy(&output.stdout)
+                                        .contains("denoland.vscode-deno");
+
+                                if !deno_extension_installed {
+                                    info!("Installing Deno extension for VSCode");
+                                    let res = Command::new(bin_name)
+                                        .args(["--install-extension", "denoland.vscode-deno"])
+                                        .spawn()
+                                        .unwrap()
+                                        .wait()
+                                        .await;
+
+                                    if let Err(err) = res {
+                                        error!("Failed to install Deno extension: {err}");
+                                    }
+                                }
+                            }
+                            Err(err) => {
+                                error!("Failed to check if Deno extension is installed: {err}");
+                            }
                         }
 
                         // Check for the .vscode/settings.json file
@@ -943,7 +954,7 @@ impl Commands {
                 info!(
                     "\n{} Initialized Cicada pipeline: {}\n{} Run it with: {}\n ",
                     " ◥◣ ▲ ◢◤ ".fg_rgb::<145, 209, 249>(),
-                    pipeline_name.bold(),
+                    pipeline_path.display().bold(),
                     "  ◸ ▽ ◹  ".fg_rgb::<145, 209, 249>(),
                     format!("cicada run {pipeline_name}").bold(),
                 );
