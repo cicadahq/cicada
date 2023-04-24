@@ -53,6 +53,8 @@ pub enum TrackEvent {
     PipelineExecuted {
         pipeline_name: String,
         pipeline_length: Option<usize>,
+        job_count: usize,
+        step_count: usize,
     },
 }
 
@@ -82,6 +84,8 @@ impl TrackEvent {
             TrackEvent::PipelineExecuted {
                 pipeline_name,
                 pipeline_length,
+                job_count,
+                step_count,
             } => [
                 (
                     "pipeline_name_hash".into(),
@@ -97,6 +101,8 @@ impl TrackEvent {
                     .into(),
                 ),
                 ("pipeline_length".into(), pipeline_length.into()),
+                ("job_count".to_owned(), job_count.into()),
+                ("step_count".to_owned(), step_count.into()),
                 (
                     "gh_actions".into(),
                     std::env::var_os("GITHUB_ACTIONS").is_some().into(),
