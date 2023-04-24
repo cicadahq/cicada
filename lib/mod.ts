@@ -228,9 +228,9 @@ export interface JobOptions {
   dependsOn?: Job[];
 
   /**
-   * What to do if the job fails.
-   * - `ignore` - ignore the failure and continue steps in the job
-   * - `stop` - stop the job
+   * What should the pipeline do if the job fails.
+   * - `ignore` - ignore the failure and continue the pipeline
+   * - `stop` - stop the pipeline
    * @default "stop"
    */
   onFail?: "ignore" | "stop";
