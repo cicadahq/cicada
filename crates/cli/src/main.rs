@@ -476,7 +476,10 @@ impl Commands {
                             pipeline_name,
                             pipeline_length,
                             job_count: pipeline.jobs.len(),
-                            step_count: pipeline.jobs.iter().fold(0, |acc, job| acc + job.steps.len()),
+                            step_count: pipeline
+                                .jobs
+                                .iter()
+                                .fold(0, |acc, job| acc + job.steps.len()),
                         }
                         .post(),
                     )
