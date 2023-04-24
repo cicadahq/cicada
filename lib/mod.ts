@@ -29,13 +29,36 @@ import { DockerImages } from "https://deno.land/x/cicada/types/dockerImages.ts";
 
 /**
  * A file path represented as a string.
+ *
+ * @example
+ * ```ts
+ * const filePath: FilePath = "node_modules"
+ * ```
  */
 export type FilePath = string;
 
 /**
  * Options for a cached directory
+ *
+ * @example
+ * ```ts
+ * const cacheDir: CacheDirectoryOptions = {
+ *   path: "node_modules"
+ *   sharing: "private"
+ * }
+ * ```
  */
 export interface CacheDirectoryOptions {
+  /**
+   * The path to the directory to cache
+   *
+   * @example
+   * ```ts
+   * const cacheDir: CacheDirectoryOptions = {
+   *    path: "node_modules"
+   * }
+   * ```
+   */
   path: FilePath;
   /**
    * Directories default to `shared`
@@ -43,6 +66,8 @@ export interface CacheDirectoryOptions {
    * - `shared` - can be used concurrently by multiple writers
    * - `private` - creates a new cache if there are multiple writers
    * - `locked` - pauses the second writer until the first one releases the cache
+   *
+   * @default "shared"
    */
   sharing?: "shared" | "private" | "locked";
 }
@@ -82,8 +107,29 @@ export type StepFn = () => void | Promise<void> | number | Promise<number>;
 export interface StepOptions {
   /**
    * The command to run as a string or a {@link StepFn step function}.
+   *
+   * @example
+   * ```ts
+   * const step: StepOptions = {
+   *  run: "echo Hello World"
+   * }
+   * ```
+   *
+   * @example
+   * ```ts
+   * const step: StepOptions = {
+   *  run: () => console.log("Hello World")
+   * }
+   * ```
+   *
+   * @example
+   * ```ts
+   * const step: StepOptions = {
+   *  run: ["/bin/bash", "-c", "echo Hello World"]
+   * }
+   * ```
    */
-  run: string | StepFn;
+  run: string | string[] | StepFn;
 
   /**
    * The name of the step.
@@ -97,6 +143,7 @@ export interface StepOptions {
 
   /**
    * Disable caching for this step. This will cause the step to run every time and may cause subsequent steps to run every time as well.
+   *
    * @default false
    */
   ignoreCache?: boolean;
@@ -115,6 +162,8 @@ export interface StepOptions {
 
   /**
    * The directory where the step should run.
+   *
+   * @default "/app"
    */
   workingDirectory?: FilePath;
 
@@ -168,6 +217,8 @@ export interface JobOptions {
 
   /**
    * The directory where the job should run
+   *
+   * @default "/app"
    */
   workingDirectory?: FilePath;
 
@@ -210,7 +261,14 @@ export type Branch = string;
  * The options for configuring a pipeline's trigger event.
  */
 export interface TriggerOptions {
+  /**
+   * Which branches when pushed to should trigger the pipeline.
+   */
   push?: Branch[];
+
+  /**
+   * Which branches when a pull request is opened should trigger the pipeline.
+   */
   pullRequest?: Branch[];
 }
 

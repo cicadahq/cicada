@@ -312,15 +312,18 @@ enum Commands {
     Update,
     /// List all available completions
     Completions { shell: clap_complete::Shell },
+    /// Open a pipeline in your editor
     Open {
         /// Pipeline to open
         pipeline: PathBuf,
     },
+    /// Check for common issues
     #[command(hide = true)]
     Doctor {
         #[command(flatten)]
         oci_args: OciArgs,
     },
+    /// Debug commands
     #[command(subcommand, hide = true)]
     Debug(debug::DebugCommand),
 }
@@ -355,6 +358,7 @@ impl Commands {
                     " Please report any issues here: https://github.com/cicadahq/cicada"
                         .if_supports_color(Stream::Stderr, |s| s.bold())
                 );
+                eprintln!();
 
                 let deno_exe = deno_exe().await?;
                 let buildctl_exe = buildctl_exe().await?;
@@ -823,7 +827,7 @@ impl Commands {
                                 }
                             }
                         }
-                        Err(e) => bail!(e),
+                        Err(err) => bail!(err),
                     }
                 }
 
@@ -982,7 +986,7 @@ impl Commands {
                 info!(
                     "\n{} Initialized Cicada pipeline: {}\n{} Run it with: {}\n",
                     " ◥◣ ▲ ◢◤ ".fg_rgb::<145, 209, 249>(),
-                    pipeline.bold(),
+                    pipeline_path.display().bold(),
                     "  ◸ ▽ ◹  ".fg_rgb::<145, 209, 249>(),
                     format!("cicada run {pipeline}").bold(),
                 );

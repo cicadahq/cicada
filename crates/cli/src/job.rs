@@ -339,6 +339,8 @@ impl JobResolved {
             env.push(format!("GITHUB_REPOSITORY={github_repository}"));
         }
 
+        env.extend(self.job.env.iter().map(|(k, v)| format!("{k}={v}")));
+
         let mut prev_step = Arc::new(local_cp);
         for (step_index, step) in self.job.steps.iter().enumerate() {
             let output = MultiOwnedOutput::output(&prev_step, 0);
