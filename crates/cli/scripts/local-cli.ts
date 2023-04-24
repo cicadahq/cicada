@@ -39,8 +39,8 @@ const pipeline: Pipeline = module.default;
 type SerializedTrigger =
   | {
     type: "options";
-    push: string[] | 'all';
-    pullRequest: string[] | 'all';
+    push: string[] | "all";
+    pullRequest: string[] | "all";
   }
   | {
     type: "denoFunction";
