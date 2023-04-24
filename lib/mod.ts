@@ -267,13 +267,17 @@ export type Branch = string;
 export interface TriggerOptions {
   /**
    * Which branches when pushed to should trigger the pipeline.
+   * 
+   * Use `'all'` if you'd like for any branch to trigger the pipeline.
    */
-  push?: Branch[];
+  push?: Branch[] | 'all';
 
   /**
    * Which branches when a pull request is opened should trigger the pipeline.
+   * 
+   * Use `'all'` if you'd like for any branch to trigger the pipeline.
    */
-  pullRequest?: Branch[];
+  pullRequest?: Branch[] | 'all';
 }
 
 /**
