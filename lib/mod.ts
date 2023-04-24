@@ -73,7 +73,9 @@ export interface CacheDirectoryOptions {
 }
 
 /**
- * A directory to cache. This can be a single file path or an array of file paths.
+ * A directory to cache. This is an array of file/folder paths as strings or of CacheDirectoryOptions which allow for further configuration options
+ * @example
+ * [".node_modules"]`
  */
 export type CacheDirectories = (FilePath | CacheDirectoryOptions)[];
 
@@ -211,7 +213,9 @@ export interface JobOptions {
   env?: Record<string, string>;
 
   /**
-   * Cache directories are mounted as docker volumes. They are mounted for all steps in a job. You may use absolute or relative paths.
+   * Cache the contents of directories created inside of a  directories are mounted as docker volumes. They are mounted for all steps in a job. You may use absolute or relative paths.
+   * @example
+   * `[".node_modules"]` will cache the contents of the .node_modules directory on the first run
    */
   cacheDirectories?: CacheDirectories;
 
