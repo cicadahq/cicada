@@ -67,7 +67,10 @@ Check out [cicadahq/modules](https://github.com/cicadahq/modules)
 
 ## Support
 
-👉 **Docs**: [cicada.build/docs](https://cicada.build/docs)\
+👉 **Docs**: [cicada.build/docs](https://cicada.build/docs)
+
+👉 **Typescript API**: [deno.land/x/cicada](https://deno.land/x/cicada/mod.ts)
+
 👉 **Discord**: [cicada.build/discord](https://discord.gg/g2PRPm4u4Y)
 
 ## Enterprise
