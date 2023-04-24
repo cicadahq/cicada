@@ -1,84 +1,48 @@
-# [Cicada](https://cicada.build)
+# Cicada
 
-**Write CI/CD pipelines in TypeScript**
+> **[Cicada](https://cicada.build)**: Write CI/CD pipelines in TypeScript, test them locally
 
-## Pipelines, Jobs, and Steps
+### Quickstart
 
-- **Pipeline**: A pipeline is the highest level concept in Cicada. It is a
-  TypeScript file like `build.ts`, `deploy,ts`, or `run_tests.ts`. A pipeline is
-  triggered when an event occurs in your repository such as a new commit or a
-  pull request being opened. A pipeline is an array of jobs that are executed
-  sequentially or in parallel.
-- **Jobs**: A job is an array of steps executed on the same container/runner.
-- **Steps**: A step is either a shell script or Deno script executed in the
-  job's container
-
-![image](https://user-images.githubusercontent.com/4949076/229649044-b385b525-946e-4a86-a66d-773547770105.png)
-
-#### **Example**
-
-You have a Pipeline called "Tests". It has jobs called "Cypress" and
-"Playwright" that execute in separate containers. Each job has multiple steps
-for cloning your code, installing the testing framework, and executing the tests
-
-## Getting started
-
-### 1. Dependencies
-
-- Docker (at least version 23.0) -
-  [Installation Guide](https://docs.docker.com/desktop/)
-
-#### MacOS Quickstart
-
+Test a pipeline on your local device in < 2 minutes
 ```bash
-brew install --cask docker
-```
+# Install Cicada
+npm install -g @cicadahq/cicada 
 
-### 2. Download the Cicada CLI
-
-Use this script to download the latest release of Cicada:
-
-```bash
-curl -fSsL https://raw.githubusercontent.com/cicadahq/cicada/main/download.sh | sh
-```
-
-### 3. Create a pipeline
-
-Go to the project you want to make a pipeline for and run:
-
-```bash
+# Set up Cicada in a project
+cd path/to/my/project
 cicada init
+
+# Test your pipeline locally
+cicada run <my-pipeline>
 ```
 
-### 4. Run the pipeline
+Deploy your pipeline to our cloud so it runs on every PR/commit:
 
-```bash
-cicada run .cicada/<pipeline-name>.ts
-```
+1. Sign up at [cicada.build/dashboard](https://cicada.build/dashboard)
+2. Link your repository using our GitHub integration
+3. Push your pipeline to GitHub
 
-### 5. Set up autocomplete for .cicada files (Optional)
+### Terminology
 
-Install the Deno extension for VSCode:
+* **Pipeline**: Pipelines are TypeScript files like `build.ts`, `deploy.ts`, or `run_tests.ts`. They are checked into your repository and run when triggered by an event in your repository, or when triggered manually, or at a defined schedule. A pipeline takes one parameter: an array of jobs.
+* **Jobs**: A job is a lightweight container that executes code. It takes one parameter: an array of steps.
+* **Steps**: A step is either a shell script or Deno/TypeScript script that executes in its parent job’s container
 
-```bash
-code --install-extension denoland.vscode-deno
-```
 
-Add the following to your `.vscode/settings.json`
+### 3rd party modules
+Check out [cicadahq/modules](https://github.com/cicadahq/modules)
 
-```json
-{
-  "deno.enablePaths": [".cicada"]
-}
-```
 
-## Support
+### Support
 
-👉 **Docs**: https://deno.land/x/cicada/mod.ts
+👉 **Docs**: [cicada.build/docs](https://cicada.build/docs)  
+👉 **Discord**: [cicada.build/discord](https://discord.gg/g2PRPm4u4Y)
 
-👉 **Discord**: https://discord.gg/g2PRPm4u4Y
 
-## Roadmap
+### Enterprise
+Need self-hosted runners, advanced security and compliance, custom integrations, or something else? We can help!
 
-- Add direct integrations with buildkit
-- Integrate deeper with deno
+Please email [brendan@fig.io](mailto:brendan@fig.io) or just grab a time
+
+
