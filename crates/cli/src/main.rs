@@ -461,7 +461,7 @@ impl Commands {
                         Some(job::Trigger::DenoFunction) => {
                             anyhow::bail!("TypeScript trigger functions are unimplemented")
                         }
-                        None => {}
+                        Some(job::Trigger::Any) | None => {}
                     }
                 }
 

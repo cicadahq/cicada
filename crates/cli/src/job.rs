@@ -65,6 +65,7 @@ pub enum Trigger {
         #[serde(default)]
         pull_request: Vec<String>,
     },
+    Any,
     DenoFunction,
 }
 
