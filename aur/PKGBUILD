@@ -16,5 +16,4 @@ sha256sums=('${sha256sum}')
 package() {
     mkdir -p "$pkgdir/usr/bin"
     install -m755 cicada "$pkgdir/usr/bin"
-    install LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
 }
