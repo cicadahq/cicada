@@ -557,12 +557,7 @@ impl Commands {
 
                             // Run pull to grab the image
                             let mut pull_child = Command::new(oci_backend.as_str())
-                                .args([
-                                    "pull",
-                                    &image_reference_str,
-                                    "--platform",
-                                    "linux/amd64",
-                                ])
+                                .args(["pull", &image_reference_str, "--platform", "linux/amd64"])
                                 .spawn()?;
 
                             if !pull_child.wait().await?.success() {
@@ -599,8 +594,7 @@ impl Commands {
                                 serde_json::from_slice(&docker_inspect_output.stdout)
                                     .context("Unable to deserialize image info")?;
 
-                            image_info_map
-                                .insert(image_reference_str.clone(), image_info.clone());
+                            image_info_map.insert(image_reference_str.clone(), image_info.clone());
 
                             image_info
                         }
