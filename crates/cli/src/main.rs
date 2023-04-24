@@ -737,7 +737,7 @@ impl Commands {
                                             if line.is_empty() {
                                                 return;
                                             }
-                                            info!("{line}");
+                                            info!("{}", line.trim_end_matches('\n'));
                                             line.clear();
                                         }
                                     }
@@ -761,7 +761,7 @@ impl Commands {
                                                 return;
                                             }
 
-                                            info!("{line}");
+                                            info!("{}", line.trim_end_matches('\n'));
                                             line.clear();
                                         }
                                     }
