@@ -395,32 +395,16 @@ impl Commands {
                     None
                 };
 
-                let pipeline = resolve_pipeline(pipeline)?;
-                let pipeline_file_name = pipeline.file_name().unwrap();
+                let pipeline_path = resolve_pipeline(pipeline)?;
+                let pipeline_file_name = pipeline_path.file_name().unwrap();
 
-                #[cfg(feature = "telemetry")]
-                let telem_join = segment_enabled().then(|| {
-                    let pipeline_name = pipeline_file_name.to_string_lossy().to_string();
-                    let pipeline_length = std::fs::read_to_string(&pipeline)
-                        .map(|f| f.lines().count())
-                        .ok();
-
-                    tokio::spawn(
-                        TrackEvent::PipelineExecuted {
-                            pipeline_name,
-                            pipeline_length,
-                        }
-                        .post(),
-                    )
-                });
-
-                let project_directory = pipeline.parent().unwrap().parent().unwrap();
-                let pipeline_url = Url::from_file_path(&pipeline)
+                let project_directory = pipeline_path.parent().unwrap().parent().unwrap();
+                let pipeline_url = Url::from_file_path(&pipeline_path)
                     .map_err(|_| anyhow::anyhow!("Unable to convert pipeline path to URL"))?;
 
                 let gh_repo = github_repo().await.ok().flatten();
 
-                info!("Building pipeline: {}", pipeline.display().bold());
+                info!("Building pipeline: {}", pipeline_path.display().bold());
 
                 let out = {
                     let tmp_file = tempfile::NamedTempFile::new()?;
@@ -478,6 +462,25 @@ impl Commands {
                 }
 
                 info!(trigger = true);
+
+                // Only send telemetry when we know we should execute
+                #[cfg(feature = "telemetry")]
+                let telem_join = segment_enabled().then(|| {
+                    let pipeline_name = pipeline_file_name.to_string_lossy().to_string();
+                    let pipeline_length = std::fs::read_to_string(&pipeline_path)
+                        .map(|f| f.lines().count())
+                        .ok();
+
+                    tokio::spawn(
+                        TrackEvent::PipelineExecuted {
+                            pipeline_name,
+                            pipeline_length,
+                            job_count: pipeline.jobs.len(),
+                            step_count: pipeline.jobs.iter().fold(0, |acc, job| acc + job.steps.len()),
+                        }
+                        .post(),
+                    )
+                });
 
                 let inspect_output = Command::new(oci_backend.as_str())
                     .args([
