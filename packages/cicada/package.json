@@ -10,7 +10,7 @@
     "url": "https://github.com/cicadahq/cicada/issues"
   },
   "homepage": "https://cicada.build",
-  "license": "(MIT OR Apache-2.0)",
+  "license": "MIT",
   "scripts": {
     "install": "node install.js"
   },
