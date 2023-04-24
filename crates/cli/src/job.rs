@@ -21,16 +21,6 @@ pub enum CacheSharing {
     Locked,
 }
 
-impl CacheSharing {
-    fn as_text(&self) -> &'static str {
-        match self {
-            CacheSharing::Shared => "shared",
-            CacheSharing::Private => "private",
-            CacheSharing::Locked => "locked",
-        }
-    }
-}
-
 impl From<CacheSharing> for buildkit_rs::llb::CacheSharingMode {
     fn from(sharing: CacheSharing) -> Self {
         match sharing {
@@ -49,25 +39,9 @@ pub struct CacheDirectory {
 }
 
 impl CacheDirectory {
-    fn to_docker_flag(&self, working_directory: &Utf8PathBuf) -> String {
-        let path = if self.path.is_absolute() {
-            self.path.to_owned()
-        } else {
-            working_directory.join(&self.path)
-        };
-
-        let mut flag = format!("--mount=type=cache,target={path}");
-
-        if let Some(sharing) = self.sharing {
-            flag.push_str(&format!(",sharing={}", sharing.as_text()));
-        }
-
-        flag
-    }
-
     fn to_mount(&self, working_directory: &Utf8PathBuf) -> buildkit_rs::llb::Mount {
         let path = if self.path.is_absolute() {
-            self.path.to_owned()
+            self.path.clone()
         } else {
             working_directory.join(&self.path)
         };
@@ -75,7 +49,7 @@ impl CacheDirectory {
         buildkit_rs::llb::Mount::cache(
             path.clone(),
             path,
-            self.sharing.map(|s| s.into()).unwrap_or_default(),
+            self.sharing.map(Into::into).unwrap_or_default(),
         )
     }
 }
@@ -127,79 +101,6 @@ pub struct Step {
 }
 
 impl Step {
-    fn to_dockerfile_lines(
-        &self,
-        parent_cache_directories: &[CacheDirectory],
-        parent_working_directory: &Utf8PathBuf,
-        job_index: usize,
-        step_index: usize,
-    ) -> Vec<String> {
-        let mut lines: Vec<String> = vec![];
-
-        // If the step has a working directory, we need to set it
-        let working_directory = if let Some(working_directory) = &self.working_directory {
-            // This is relative to the parent working directory if it is not absolute
-            let working_directory = if working_directory.is_absolute() {
-                working_directory.to_owned()
-            } else {
-                parent_working_directory.join(working_directory)
-            };
-
-            lines.push(format!("WORKDIR {working_directory}"));
-
-            working_directory
-        } else {
-            parent_working_directory.to_owned()
-        };
-
-        let mut run_cmd_parts: Vec<String> = vec!["RUN".into()];
-
-        for cache_directory in &self.cache_directories {
-            run_cmd_parts.push(cache_directory.to_docker_flag(&working_directory));
-        }
-
-        for cache_directory in parent_cache_directories {
-            run_cmd_parts.push(cache_directory.to_docker_flag(&working_directory));
-        }
-
-        // Cache the deno directory
-        if StepRun::DenoFunction == self.run {
-            run_cmd_parts.push("--mount=type=cache,target=/root/.cache/deno".into());
-        }
-
-        for secret in &self.secrets {
-            run_cmd_parts.push(format!("--mount=type=secret,id={secret}"));
-        }
-
-        // Set the environment variables
-        for (key, value) in &self.env {
-            run_cmd_parts.push(format!("{}={}", shlex::quote(key), shlex::quote(value)));
-        }
-
-        // Invalidate the cache if the step is marked as ignore_cache by generating a non-deterministic environment variable
-        if self.ignore_cache.unwrap_or(false) {
-            run_cmd_parts.push(format!("CICADA_CACHE_BUST={}", uuid::Uuid::new_v4()));
-        }
-
-        match &self.run {
-            StepRun::Command { command } => {
-                run_cmd_parts.push(command.into());
-            }
-            StepRun::DenoFunction => {
-                run_cmd_parts.push(format!("cicada step {job_index} {step_index}"));
-            }
-        }
-
-        lines.push(run_cmd_parts.join(" "));
-
-        // Restore the working directory if it was changed
-        if self.working_directory.is_some() {
-            lines.push(format!("WORKDIR {parent_working_directory}"));
-        }
-
-        lines
-    }
-
     fn to_exec<'a, 'b: 'a>(
         &'b self,
         root_mount: buildkit_rs::llb::Mount<'a>,
@@ -231,30 +132,28 @@ impl Step {
         .with_mount(root_mount);
 
         // Custom name for the step
-        match (&self.name, &self.run) {
+        exec = match (&self.name, &self.run) {
             (Some(name), StepRun::Command { command }) => {
-                exec = exec.with_custom_name(format!("{name} ({step_index}): {command}"))
+                exec.with_custom_name(format!("{name} ({step_index}): {command}"))
             }
             (Some(name), StepRun::DenoFunction) => {
-                exec = exec.with_custom_name(format!("{name} ({step_index})"))
+                exec.with_custom_name(format!("{name} ({step_index})"))
             }
-            (None, StepRun::Command { command }) => exec = exec.with_custom_name(command.clone()),
-            (None, StepRun::DenoFunction) => {
-                exec = exec.with_custom_name(format!("Step {step_index}"))
-            }
-        }
+            (None, StepRun::Command { command }) => exec.with_custom_name(command.clone()),
+            (None, StepRun::DenoFunction) => exec.with_custom_name(format!("Step {step_index}")),
+        };
 
         // If the step has a working directory, we need to set it
         let working_directory = if let Some(working_directory) = &self.working_directory {
             // This is relative to the parent working directory if it is not absolute
 
             if working_directory.is_absolute() {
-                working_directory.to_owned()
+                working_directory.clone()
             } else {
                 parent_working_directory.join(working_directory)
             }
         } else {
-            parent_working_directory.to_owned()
+            parent_working_directory.clone()
         };
 
         exec = exec.with_cwd(working_directory.clone().into());
@@ -319,16 +218,19 @@ pub struct Job {
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct InspectInfo {
+    #[serde(default)]
     config: InspectConfig,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct InspectConfig {
-    pub hostname: String,
-    pub domainname: String,
-    pub user: String,
+    pub hostname: Option<String>,
+    pub domainname: Option<String>,
+    pub user: Option<String>,
+    #[serde(default)]
     pub env: Vec<String>,
+    #[serde(default)]
     pub cmd: Vec<String>,
 }
 
@@ -339,80 +241,13 @@ pub struct JobResolved {
 }
 
 impl JobResolved {
-    /// This converts the job into a dockerfile definition, the plan is to convert this into
-    /// a direct llb definition in the future
-    pub fn to_dockerfile(
-        &self,
-        module_name: &str,
-        github: &Option<Github>,
-        job_index: usize,
-        bootstrap: bool,
-    ) -> String {
-        let mut lines: Vec<String> = vec!["# syntax = docker/dockerfile:1.4".into()];
-
-        lines.push(format!(
-            "FROM docker.io/denoland/deno:bin-{DENO_VERSION} as deno-bin"
-        ));
-        if !bootstrap {
-            lines.push(format!(
-                "FROM --platform=linux/amd64 docker.io/cicadahq/cicada-bin:{} as cicada-bin",
-                env!("CARGO_PKG_VERSION")
-            ));
-        }
-
-        lines.push(format!("FROM --platform=linux/amd64 {}", self.job.image));
-        lines.push("ENV CI=true".into());
-
-        lines.push("COPY --from=cicada-bin /cicada /usr/local/bin/cicada".into());
-        lines.push("COPY --from=deno-bin /deno /usr/local/bin/deno".into());
-
-        // Make working directory
-        let working_directory = self
-            .job
-            .working_directory
-            .clone()
-            .unwrap_or_else(|| Utf8PathBuf::from("/app"));
-
-        lines.push(format!("RUN mkdir -p {working_directory}"));
-        lines.push("RUN mkdir -p /workspace".into());
-
-        lines.push(format!("COPY --from=local . {working_directory}"));
-
-        lines.push(format!("WORKDIR {working_directory}"));
-
-        // Set the env for the steps
-        for (key, value) in &self.job.env {
-            lines.push(format!("ENV {}={}", shlex::quote(key), shlex::quote(value)));
-        }
-
-        lines.push("ENV CICADA_JOB=1".into());
-        lines.push(format!(
-            "ENV CICADA_PIPELINE_FILE={working_directory}/.cicada/{module_name}",
-        ));
-        if let Some(github_repository) = github {
-            lines.push(format!("ENV GITHUB_REPOSITORY={github_repository}"));
-        }
-
-        // Run the steps
-        for (step_index, step) in self.job.steps.iter().enumerate() {
-            lines.extend(step.to_dockerfile_lines(
-                &self.job.cache_directories,
-                &working_directory,
-                job_index,
-                step_index,
-            ));
-        }
-
-        lines.join("\n")
-    }
-
     pub fn to_llb(
         &self,
-        module_name: &str,
-        project_directory: &Path,
+        module_name: impl AsRef<str>,
+        project_directory: impl AsRef<Path>,
         github: &Option<Github>,
         job_index: usize,
-        // bootstrap: bool,
+        cicada_image: Option<impl Into<String>>,
     ) -> Vec<u8> {
         use buildkit_rs::llb::*;
 
@@ -426,7 +261,7 @@ impl JobResolved {
 
         // Try to load excludes from `.cicadaignore`, `.containerignore`, `.dockerignore` in that order
         for ignore_name in &[".cicadaignore", ".containerignore", ".dockerignore"] {
-            let ignore_path = project_directory.join(ignore_name);
+            let ignore_path = project_directory.as_ref().join(ignore_name);
             if ignore_path.is_file() {
                 // Read the file, strip comments and empty lines
                 let ignore_file = match std::fs::File::open(ignore_path) {
@@ -459,10 +294,13 @@ impl JobResolved {
         let deno_image = Image::new(format!("docker.io/denoland/deno:bin-{DENO_VERSION}"))
             .with_platform(Platform::LINUX_AMD64);
 
-        let cicada_image = Image::new(format!(
-            "docker.io/cicadahq/cicada-bin:{}",
-            env!("CARGO_PKG_VERSION")
-        ))
+        let cicada_image = match cicada_image {
+            Some(cicada_image) => Image::local(cicada_image.into()),
+            None => Image::new(format!(
+                "docker.io/cicadahq/cicada-bin:{}",
+                env!("CARGO_PKG_VERSION")
+            )),
+        }
         .with_platform(Platform::LINUX_AMD64);
 
         // TODO: replace all the cp and mkdir with native llb commands, this was just quick and dirty
@@ -488,7 +326,10 @@ impl JobResolved {
 
         env.extend([
             "CI=1".into(),
-            format!("CICADA_PIPELINE_FILE={working_directory}/.cicada/{module_name}",),
+            format!(
+                "CICADA_PIPELINE_FILE={working_directory}/.cicada/{}",
+                module_name.as_ref()
+            ),
             "CICADA_JOB=1".into(),
         ]);
 

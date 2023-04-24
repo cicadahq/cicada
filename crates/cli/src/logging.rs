@@ -85,12 +85,11 @@ impl<S: Subscriber + for<'a> LookupSpan<'a>> Layer<S> for CustomFormatLayer {
                 let job_name = visitor
                     .0
                     .get("job_name")
-                    .map(|n| n.as_str())
-                    .unwrap_or("unnamed_job");
+                    .map_or("unnamed_job", |n| n.as_str());
                 let mut hasher = DefaultHasher::new();
                 job_name.hash(&mut hasher);
                 let hash = hasher.finish();
-                let color = COLORS[(hash % COLORS.len() as u64) as usize];
+                let color = COLORS[hash as usize % COLORS.len()];
                 write!(
                     stdout,
                     "{}: ",
@@ -132,11 +131,13 @@ pub fn logging_init() -> Result<()> {
     let log_json = std::env::var_os("CICADA_LOG_JSON").is_some();
     match log_json {
         true => {
-            tracing::subscriber::set_global_default(SubscriberBuilder::default().json().finish())?
+            tracing::subscriber::set_global_default(SubscriberBuilder::default().json().finish())?;
         }
-        false => tracing_subscriber::registry()
-            .with(CustomFormatLayer::new())
-            .try_init()?,
+        false => {
+            tracing_subscriber::registry()
+                .with(CustomFormatLayer::new())
+                .try_init()?;
+        }
     }
 
     Ok(())

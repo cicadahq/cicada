@@ -82,8 +82,8 @@ async fn github_repo_git() -> Result<Option<Github>> {
     Ok(gh)
 }
 
-fn github_repo_env() -> Result<Option<Github>> {
-    let gh_repo = match std::env::var("GITHUB_REPOSITORY") {
+fn github_repo_env() -> Option<Github> {
+    match std::env::var("GITHUB_REPOSITORY") {
         Ok(repo) => {
             // Parse the GITHUB_REPOSITORY env var
             let parts: Vec<&str> = repo.split('/').collect();
@@ -97,14 +97,12 @@ fn github_repo_env() -> Result<Option<Github>> {
             }
         }
         Err(_) => None,
-    };
-
-    Ok(gh_repo)
+    }
 }
 
 // Gets the github repo from the GITHUB_REPOSITORY env var or from the git remote
 pub async fn github_repo() -> Result<Option<Github>> {
-    match github_repo_env()? {
+    match github_repo_env() {
         Some(gh_repo) => Ok(Some(gh_repo)),
         None => github_repo_git().await,
     }

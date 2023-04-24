@@ -30,7 +30,7 @@ use tracing::{error, info, info_span, warn, Instrument};
 use update::check_for_update;
 use url::Url;
 
-use ahash::HashMap;
+use ahash::{HashMap, HashMapExt};
 use clap::Parser;
 use owo_colors::{OwoColorize, Stream};
 use tokio::{
@@ -39,7 +39,7 @@ use tokio::{
 };
 
 use crate::{
-    bin_deps::{buildctl_exe, deno_exe},
+    bin_deps::{buildctl_exe, deno_exe, BUILDKIT_VERSION},
     dag::{invert_graph, topological_sort, Node},
     git::github_repo,
     job::{InspectInfo, JobResolved, OnFail, Pipeline},
@@ -206,12 +206,11 @@ async fn runtime_checks(oci: &OciBackend) {
 
     // Run docker info to check that docker is running
     match docker_info {
-        Ok(output) => {
-            if !output.status.success() {
-                error!("Docker is not running! Please start it to use Cicada");
-                std::process::exit(1);
-            }
+        Ok(output) if !output.status.success() => {
+            error!("Docker is not running! Please start it to use Cicada");
+            std::process::exit(1);
         }
+        Ok(_) => {}
         Err(_) => {
             error!("Cicada requires Docker to run. Please install it using one of the methods on https://docs.docker.com/engine/install");
             std::process::exit(1);
@@ -242,9 +241,8 @@ pub fn resolve_pipeline(pipeline: impl AsRef<Path>) -> Result<PathBuf> {
         let cicada_dir = pipeline.parent().expect("Could not get parent");
         if cicada_dir.ends_with(".cicada") {
             return Ok(pipeline.canonicalize()?);
-        } else {
-            anyhow::bail!("Pipeline must be in the .cicada directory");
         }
+        anyhow::bail!("Pipeline must be in the .cicada directory");
     }
 
     let cicada_dir = resolve_cicada_dir()?;
@@ -299,12 +297,8 @@ enum Commands {
         #[command(flatten)]
         oci_args: OciArgs,
 
-        /// Use the new experimental buildkit backend
-        #[arg(long)]
-        buildkit_experimental: bool,
-
         /// Disable caching
-        #[arg(long, requires = "buildkit_experimental")]
+        #[arg(long)]
         no_cache: bool,
     },
     /// Run a step in a cicada workflow
@@ -342,7 +336,6 @@ impl Commands {
                 secrets_json,
                 cicada_dockerfile,
                 oci_args,
-                buildkit_experimental,
                 no_cache,
             } => {
                 let oci_backend = oci_args.oci_backend();
@@ -366,8 +359,11 @@ impl Commands {
                 let deno_exe = deno_exe().await?;
                 let buildctl_exe = buildctl_exe().await?;
 
-                let cicada_bin_tag = if let Some(cicada_dockerfile) = cicada_dockerfile {
-                    let tag = format!("cicada-bin:{}", env!("CARGO_PKG_VERSION"));
+                let cicada_image = if let Some(cicada_dockerfile) = cicada_dockerfile {
+                    let tag = format!(
+                        "docker.io/cicadahq/cicada-bin:{}-dev",
+                        env!("CARGO_PKG_VERSION")
+                    );
 
                     info!("Building cicada bootstrap image...\n");
 
@@ -483,46 +479,56 @@ impl Commands {
 
                 info!(trigger = true);
 
-                if buildkit_experimental {
-                    let inspect_output = Command::new(oci_backend.as_str())
+                let inspect_output = Command::new(oci_backend.as_str())
+                    .args([
+                        "inspect",
+                        "cicada-buildkitd",
+                        "--type",
+                        "container",
+                        "--format",
+                        "{{json .}}",
+                    ])
+                    .output()
+                    .await?;
+
+                if inspect_output.status.success() {
+                    let containers: serde_json::Value =
+                        serde_json::from_slice(&inspect_output.stdout)?;
+
+                    if containers["State"]["Status"] != "running" {
+                        info!("Starting buildkitd container...\n");
+
+                        Command::new(oci_backend.as_str())
+                            .args(["start", "cicada-buildkitd"])
+                            .status()
+                            .await?;
+                    }
+                } else {
+                    info!("Starting buildkitd container...\n");
+
+                    let output = Command::new(oci_backend.as_str())
                         .args([
-                            "inspect",
+                            "run",
+                            "-d",
+                            "--name",
                             "cicada-buildkitd",
-                            "--type",
-                            "container",
-                            "--format",
-                            "{{json .}}",
+                            "--privileged",
+                            &format!("docker.io/moby/buildkit:{BUILDKIT_VERSION}"),
                         ])
                         .output()
                         .await?;
 
-                    if !inspect_output.status.success() {
-                        Command::new(oci_backend.as_str())
-                            .args([
-                                "run",
-                                "-d",
-                                "--name",
-                                "cicada-buildkitd",
-                                "--privileged",
-                                "moby/buildkit:latest",
-                            ])
-                            .status()
-                            .await?;
-                    } else {
-                        let containers: serde_json::Value =
-                            serde_json::from_slice(&inspect_output.stdout)?;
-
-                        if containers["State"]["Status"] != "running" {
-                            Command::new(oci_backend.as_str())
-                                .args(["start", "cicada-buildkitd"])
-                                .status()
-                                .await?;
-                        }
+                    if !output.status.success() {
+                        anyhow::bail!(
+                            "Unable to start buildkitd container: {}",
+                            String::from_utf8_lossy(&output.stderr)
+                        );
                     }
                 }
 
                 // Populate the jobs with `docker inspect` data
                 let mut populated_jobs: Vec<JobResolved> = vec![];
+                let mut image_info_map: HashMap<String, InspectInfo> = HashMap::new();
                 for job in pipeline.jobs {
                     let resolved_image_name = buildkit_rs::reference::Reference::parse(&job.image)
                         .with_context(|| {
@@ -531,65 +537,75 @@ impl Commands {
                                 job.image.to_string().bold()
                             )
                         })?;
+                    let resolved_image_name_str = resolved_image_name.to_string();
 
-                    info!("Pulling image: {}", resolved_image_name.to_string().bold());
+                    let image_info = match image_info_map.get(&resolved_image_name_str) {
+                        Some(inspect_info) => inspect_info.clone(),
+                        None => {
+                            info!("Pulling image: {}", resolved_image_name_str.bold());
 
-                    // Run pull to grab the image
-                    let mut pull_child = Command::new(oci_backend.as_str())
-                        .args([
-                            "pull",
-                            &resolved_image_name.to_string(),
-                            "--platform",
-                            "linux/amd64",
-                        ])
-                        .spawn()?;
+                            // Run pull to grab the image
+                            let mut pull_child = Command::new(oci_backend.as_str())
+                                .args([
+                                    "pull",
+                                    &resolved_image_name_str,
+                                    "--platform",
+                                    "linux/amd64",
+                                ])
+                                .spawn()?;
 
-                    if !pull_child.wait().await?.success() {
-                        anyhow::bail!(
-                            "Unable to pull image: {}",
-                            resolved_image_name.to_string().bold()
-                        );
-                    }
+                            if !pull_child.wait().await?.success() {
+                                anyhow::bail!(
+                                    "Unable to pull image: {}",
+                                    resolved_image_name_str.bold()
+                                );
+                            }
 
-                    // Run inspect to grab the image info
-                    let docker_inspect_output = Command::new(oci_backend.as_str())
-                        .args([
-                            "inspect",
-                            &resolved_image_name.to_string(),
-                            "--type",
-                            "image",
-                            "--format",
-                            "{{json .}}",
-                        ])
-                        .output()
-                        .await?;
+                            eprintln!();
 
-                    if !docker_inspect_output.status.success() {
-                        anyhow::bail!(
-                            "Unable to inspect image: {}",
-                            resolved_image_name.to_string().bold()
-                        );
-                    }
+                            // Run inspect to grab the image info
+                            let docker_inspect_output = Command::new(oci_backend.as_str())
+                                .args([
+                                    "inspect",
+                                    &resolved_image_name_str,
+                                    "--type",
+                                    "image",
+                                    "--format",
+                                    "{{json .}}",
+                                ])
+                                .output()
+                                .await?;
 
-                    // Deserialize the image info
-                    let image_info: InspectInfo =
-                        serde_json::from_slice(&docker_inspect_output.stdout)
-                            .context("Unable to deserialize image info")?;
+                            if !docker_inspect_output.status.success() {
+                                anyhow::bail!(
+                                    "Unable to inspect image: {}",
+                                    resolved_image_name_str.bold()
+                                );
+                            }
+
+                            // Deserialize the image info
+                            let image_info: InspectInfo =
+                                serde_json::from_slice(&docker_inspect_output.stdout)
+                                    .context("Unable to deserialize image info")?;
+
+                            image_info_map
+                                .insert(resolved_image_name_str.clone(), image_info.clone());
+
+                            image_info
+                        }
+                    };
 
                     populated_jobs.push(JobResolved {
                         job: Box::new(job),
                         image_info: Box::new(image_info),
                     });
-
-                    eprintln!();
                 }
 
-                let mut jobs = HashMap::from_iter(
-                    populated_jobs
-                        .into_iter()
-                        .enumerate()
-                        .map(|(index, job)| (job.job.uuid, (index, job))),
-                );
+                let mut jobs = populated_jobs
+                    .into_iter()
+                    .enumerate()
+                    .map(|(index, job)| (job.job.uuid, (index, job)))
+                    .collect::<HashMap<_, _>>();
 
                 let mut all_secrets: Vec<(String, String)> = vec![];
 
@@ -636,7 +652,7 @@ impl Commands {
 
                 let nodes: Vec<Node> = jobs
                     .values()
-                    .map(|(_, job)| Node::new(job.job.uuid, job.job.depends_on.to_vec()))
+                    .map(|(_, job)| Node::new(job.job.uuid, job.job.depends_on.clone()))
                     .collect();
                 let graph = topological_sort(&invert_graph(&nodes))?;
 
@@ -652,123 +668,57 @@ impl Commands {
                         let pipeline_file_name = pipeline_file_name.to_os_string();
                         let project_directory = project_directory.to_path_buf();
                         let all_secrets = all_secrets.clone();
-                        let cicada_bin_tag = cicada_bin_tag.clone();
+                        let cicada_image = cicada_image.clone();
                         let buildctl_exe = buildctl_exe.clone();
 
                         tokio::spawn(
                             async move {
-                                let mut child = if buildkit_experimental {
-                                    let mut buildctl = Command::new(buildctl_exe);
-                                    buildctl
-                                        .arg("build")
-                                        .arg("--local")
-                                        .arg(format!("local={}", project_directory.display()))
-                                        .arg("--progress")
-                                        .arg("plain")
-                                        .env(
-                                            "BUILDKIT_HOST",
-                                            format!(
-                                                "{}-container://cicada-buildkitd",
-                                                oci_backend.as_str()
-                                            ),
-                                        );
-
-                                    if no_cache {
-                                        buildctl.arg("--no-cache");
-                                    }
-
-                                    for (key, _) in &all_secrets {
-                                        buildctl.arg("--secret").arg(format!("id={key}"));
-                                    }
-
-                                    let mut buildctl_child = buildctl
-                                        .envs(all_secrets)
-                                        .stdin(Stdio::piped())
-                                        .stdout(Stdio::piped())
-                                        .stderr(Stdio::piped())
-                                        .spawn()?;
-
-                                    let llb_vec = job.to_llb(
-                                        pipeline_file_name.to_str().unwrap(),
-                                        &project_directory,
-                                        &gh_repo,
-                                        job_index,
+                                let mut buildctl = Command::new(buildctl_exe);
+                                buildctl
+                                    .arg("build")
+                                    .arg("--local")
+                                    .arg(format!("local={}", project_directory.display()))
+                                    .arg("--progress")
+                                    .arg("plain")
+                                    .env(
+                                        "BUILDKIT_HOST",
+                                        format!(
+                                            "{}-container://cicada-buildkitd",
+                                            oci_backend.as_str()
+                                        ),
                                     );
 
-                                    let mut stdin = buildctl_child.stdin.take().unwrap();
-                                    stdin.write_all(&llb_vec).in_current_span().await?;
-                                    stdin.shutdown().in_current_span().await?;
+                                if no_cache {
+                                    buildctl.arg("--no-cache");
+                                }
 
-                                    buildctl_child
-                                } else {
-                                    let tag = format!("cicada-{}", job.job.image);
+                                for (key, _) in &all_secrets {
+                                    buildctl.arg("--secret").arg(format!("id={key}"));
+                                }
 
-                                    let mut args: Vec<String> = vec![
-                                        "buildx".into(),
-                                        "build".into(),
-                                        "-t".into(),
-                                        tag,
-                                        "--build-context".into(),
-                                        format!("local={}", project_directory.to_str().unwrap()),
-                                        "--progress".into(),
-                                        "plain".into(),
-                                    ];
+                                let mut buildctl_child = buildctl
+                                    .envs(all_secrets)
+                                    .stdin(Stdio::piped())
+                                    .stdout(Stdio::piped())
+                                    .stderr(Stdio::piped())
+                                    .spawn()?;
 
-                                    if let Some(cicada_bin_tag) = &cicada_bin_tag {
-                                        args.extend([
-                                            "--build-context".into(),
-                                            format!("cicada-bin=docker-image://{cicada_bin_tag}"),
-                                        ]);
-                                    }
+                                let llb_vec = job.to_llb(
+                                    pipeline_file_name.to_str().unwrap(),
+                                    &project_directory,
+                                    &gh_repo,
+                                    job_index,
+                                    cicada_image,
+                                );
 
-                                    for (key, _) in &all_secrets {
-                                        args.extend([
-                                            "--secret".into(),
-                                            format!("id={key},env={key}"),
-                                        ]);
-                                    }
-
-                                    args.push("-".into());
-
-                                    let mut buildx_cmd = Command::new(oci_backend.as_str());
-                                    buildx_cmd
-                                        .args(args)
-                                        .stdin(Stdio::piped())
-                                        .stdout(Stdio::piped())
-                                        .stderr(Stdio::piped())
-                                        .envs(all_secrets);
-
-                                    let mut buildx = buildx_cmd.spawn()?;
-
-                                    let dockerfile = job.to_dockerfile(
-                                        pipeline_file_name.to_str().unwrap(),
-                                        &gh_repo,
-                                        job_index,
-                                        cicada_bin_tag.is_some(),
-                                    );
-
-                                    buildx
-                                        .stdin
-                                        .as_mut()
-                                        .unwrap()
-                                        .write_all(dockerfile.as_bytes())
-                                        .in_current_span()
-                                        .await?;
-
-                                    buildx
-                                        .stdin
-                                        .take()
-                                        .unwrap()
-                                        .shutdown()
-                                        .in_current_span()
-                                        .await?;
-
-                                    buildx
-                                };
+                                let mut stdin = buildctl_child.stdin.take().unwrap();
+                                stdin.write_all(&llb_vec).in_current_span().await?;
+                                stdin.shutdown().in_current_span().await?;
+                                drop(stdin);
 
                                 // Print the output as it comes in
-                                let stdout = child.stdout.take().unwrap();
-                                let stderr = child.stderr.take().unwrap();
+                                let stdout = buildctl_child.stdout.take().unwrap();
+                                let stderr = buildctl_child.stderr.take().unwrap();
 
                                 // TODO: Make this into a function that takes a stream, a color, and a display name
                                 let stdout_handle = tokio::spawn(
@@ -828,9 +778,9 @@ impl Commands {
                                 })?;
 
                                 let status =
-                                    child.wait().in_current_span().await.with_context(|| {
-                                        format!("Failed to wait for {long_name} to finish")
-                                    })?;
+                                    buildctl_child.wait().in_current_span().await.with_context(
+                                        || format!("Failed to wait for {long_name} to finish"),
+                                    )?;
 
                                 anyhow::Ok((long_name, status, job))
                             }
@@ -894,9 +844,9 @@ impl Commands {
                         "Cicada directory already exists, run {} to create a new pipeline",
                         "cicada new".bold()
                     );
-                } else {
-                    std::fs::create_dir(&cicada_dir)?;
                 }
+
+                std::fs::create_dir(&cicada_dir)?;
 
                 let pipeline_name = match pipeline {
                     Some(pipeline) => pipeline,
@@ -958,7 +908,9 @@ impl Commands {
 
                         // Check for the .vscode/settings.json file
                         let settings_path = PathBuf::from(".vscode/settings.json");
-                        if !settings_path.exists() {
+                        if settings_path.exists() {
+                            info!("Add the following to your VSCode settings file: \"deno.enablePaths\": [\".cicada\"]");
+                        } else {
                             info!("Creating VSCode settings file");
                             std::fs::create_dir_all(".vscode")?;
                             tokio::fs::write(
@@ -966,8 +918,6 @@ impl Commands {
                                 "{\"\n  deno.enablePaths\": [\".cicada\"]\n}",
                             )
                             .await?;
-                        } else {
-                            info!("Add the following to your VSCode settings file: \"deno.enablePaths\": [\".cicada\"]");
                         }
                     }
                 }

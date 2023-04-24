@@ -6,8 +6,10 @@ use tokio::process::Command;
 pub const DENO_VERSION: &str = "1.32.5";
 pub const DENO_VERSION_REQ: &str = ">=1.32";
 
+pub const BUILDKIT_VERSION: &str = "0.11.5";
+
 #[cfg(feature = "managed-bins")]
-pub const BUILDCTL_VERSION: &str = "0.11.5";
+pub const BUILDCTL_VERSION: &str = BUILDKIT_VERSION;
 pub const BUILDCTL_VERSION_REQ: &str = ">=0.11";
 
 pub fn deno_version_req() -> VersionReq {
