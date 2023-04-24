@@ -352,7 +352,7 @@ impl Commands {
                     " Cicada is in alpha, it may not work as expected"
                         .if_supports_color(Stream::Stderr, |s| s.bold()),
                     "  ◸ ▽ ◹  ".if_supports_color(Stream::Stderr, |s| s.fg_rgb::<145, 209, 249>()),
-                    " Please report any issues here: http://github.com/cicadahq/cicada"
+                    " Please report any issues here: https://github.com/cicadahq/cicada"
                         .if_supports_color(Stream::Stderr, |s| s.bold())
                 );
 
@@ -519,7 +519,7 @@ impl Commands {
                             "--name",
                             "cicada-buildkitd",
                             "--privileged",
-                            &format!("docker.io/moby/buildkit:{BUILDKIT_VERSION}"),
+                            &format!("docker.io/moby/buildkit:v{BUILDKIT_VERSION}"),
                         ])
                         .output()
                         .await?;
