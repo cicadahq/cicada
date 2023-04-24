@@ -19,7 +19,7 @@
  * export default new Pipeline([job]);
  * ```
  *
- * For more information, see the [Cicada documentation](https://cicada.run/docs).
+ * For more information, see the [Cicada documentation](https://cicada.build/docs).
  *
  * @module
  */
