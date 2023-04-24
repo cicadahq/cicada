@@ -12,7 +12,7 @@ mod update;
 mod util;
 
 use anyhow::{bail, Context, Result};
-use buildkit_rs::util::oci::OciBackend;
+use buildkit_rs::{reference::Reference, util::oci::OciBackend};
 use clap_complete::generate;
 use dialoguer::theme::ColorfulTheme;
 use logging::logging_init;
@@ -536,25 +536,30 @@ impl Commands {
                 let mut populated_jobs: Vec<JobResolved> = vec![];
                 let mut image_info_map: HashMap<String, InspectInfo> = HashMap::new();
                 for job in pipeline.jobs {
-                    let resolved_image_name = buildkit_rs::reference::Reference::parse(&job.image)
+                    let mut image_reference = Reference::parse_normalized_named(&job.image)
                         .with_context(|| {
                             format!(
                                 "Unable to parse image name: {}",
                                 job.image.to_string().bold()
                             )
                         })?;
-                    let resolved_image_name_str = resolved_image_name.to_string();
 
-                    let image_info = match image_info_map.get(&resolved_image_name_str) {
+                    if image_reference.tag.is_none() && image_reference.digest.is_none() {
+                        image_reference.tag = Some("latest".into());
+                    }
+
+                    let image_reference_str = image_reference.to_string();
+
+                    let image_info = match image_info_map.get(&image_reference_str) {
                         Some(inspect_info) => inspect_info.clone(),
                         None => {
-                            info!("Pulling image: {}", resolved_image_name_str.bold());
+                            info!("Pulling image: {}", image_reference_str.bold());
 
                             // Run pull to grab the image
                             let mut pull_child = Command::new(oci_backend.as_str())
                                 .args([
                                     "pull",
-                                    &resolved_image_name_str,
+                                    &image_reference_str,
                                     "--platform",
                                     "linux/amd64",
                                 ])
@@ -563,7 +568,7 @@ impl Commands {
                             if !pull_child.wait().await?.success() {
                                 anyhow::bail!(
                                     "Unable to pull image: {}",
-                                    resolved_image_name_str.bold()
+                                    image_reference_str.bold()
                                 );
                             }
 
@@ -573,7 +578,7 @@ impl Commands {
                             let docker_inspect_output = Command::new(oci_backend.as_str())
                                 .args([
                                     "inspect",
-                                    &resolved_image_name_str,
+                                    &image_reference_str,
                                     "--type",
                                     "image",
                                     "--format",
@@ -585,7 +590,7 @@ impl Commands {
                             if !docker_inspect_output.status.success() {
                                 anyhow::bail!(
                                     "Unable to inspect image: {}",
-                                    resolved_image_name_str.bold()
+                                    image_reference_str.bold()
                                 );
                             }
 
@@ -595,7 +600,7 @@ impl Commands {
                                     .context("Unable to deserialize image info")?;
 
                             image_info_map
-                                .insert(resolved_image_name_str.clone(), image_info.clone());
+                                .insert(image_reference_str.clone(), image_info.clone());
 
                             image_info
                         }
@@ -604,6 +609,7 @@ impl Commands {
                     populated_jobs.push(JobResolved {
                         job: Box::new(job),
                         image_info: Box::new(image_info),
+                        image_reference,
                     });
                 }
 
