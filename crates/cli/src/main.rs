@@ -508,6 +508,8 @@ impl Commands {
                             .args(["start", "cicada-buildkitd"])
                             .status()
                             .await?;
+
+                        eprintln!();
                     }
                 } else {
                     info!("Starting buildkitd container...\n");
@@ -530,6 +532,8 @@ impl Commands {
                             String::from_utf8_lossy(&output.stderr)
                         );
                     }
+
+                    eprintln!();
                 }
 
                 // Populate the jobs with `docker inspect` data
@@ -921,7 +925,7 @@ impl Commands {
                             std::fs::create_dir_all(".vscode")?;
                             tokio::fs::write(
                                 &settings_path,
-                                "{\"\n  deno.enablePaths\": [\".cicada\"]\n}",
+                                "{\n  \"deno.enablePaths\": [\".cicada\"]\n}",
                             )
                             .await?;
                         }
