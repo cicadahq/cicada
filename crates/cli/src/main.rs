@@ -199,7 +199,7 @@ async fn runtime_checks(oci: &OciBackend) {
             }
         }
         Err(_) => {
-            error!("Cicada requires Docker to run. Please install it using one of the methods or install it from https://docs.docker.com/engine/install");
+            error!("Cicada requires Docker to run. Please install it using your package manager or from https://docs.docker.com/engine/install");
             std::process::exit(1);
         }
     }
@@ -212,7 +212,7 @@ async fn runtime_checks(oci: &OciBackend) {
         }
         Ok(_) => {}
         Err(_) => {
-            error!("Cicada requires Docker to run. Please install it using one of the methods on https://docs.docker.com/engine/install");
+            error!("Cicada requires Docker to run. Please install it using your package manager or from https://docs.docker.com/engine/install");
             std::process::exit(1);
         }
     }
