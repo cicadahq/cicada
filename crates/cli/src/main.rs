@@ -144,75 +144,31 @@ where
     Ok(())
 }
 
-/// Check that docker is installed and buildx is installed, other checks before running cicada can be added here
+/// Check that oci backend is working before doing anything else for clean error messages
 async fn runtime_checks(oci: &OciBackend) {
     if std::env::var_os("CICADA_SKIP_CHECKS").is_some() {
         return;
     }
 
-    // We dont do any checks for podman yet
-    if oci == &OciBackend::Podman {
-        return;
-    }
-
-    let (docker_buildx_version, docker_info) = tokio::join!(
-        Command::new("docker").args(["buildx", "version"]).output(),
-        Command::new("docker")
-            .args(["info", "--format", "{{json .}}"])
-            .output(),
-    );
-
-    // Validate docker client version is at least 23
-    match docker_buildx_version {
-        Ok(output) => {
-            let buildx_error = || {
-                if std::env::consts::OS == "macos" || std::env::consts::OS == "windows" {
-                    info!("Cicada requires Docker Desktop v4.12 or above to run. Please upgrade using the Docker Desktop UI");
-                } else {
-                    info!("Cicada requires Docker Buildx >=0.9 to run. Please install it by updating Docker to v4.12 or by manually downloading from from https://github.com/docker/buildx#linux-packages");
-                }
-                std::process::exit(1);
-            };
-
-            if !output.status.success() {
-                buildx_error();
-            }
-
-            let version_str = String::from_utf8_lossy(&output.stdout);
-
-            let version_str_parts = version_str.split_whitespace().collect::<Vec<&str>>();
-
-            if version_str_parts[0] != "github.com/docker/buildx" {
-                buildx_error();
-            }
-
-            let version = version_str_parts[1]
-                .strip_prefix('v')
-                .unwrap_or(version_str_parts[1]);
-            let version_parts = version.split('.').collect::<Vec<&str>>();
-
-            let major = version_parts[0].parse::<u32>().unwrap_or_default();
-            let minor = version_parts[1].parse::<u32>().unwrap_or_default();
-
-            if major == 0 && minor < 9 {
-                buildx_error();
-            }
-        }
-        Err(_) => {
-            error!("Cicada requires Docker to run. Please install it using your package manager or from https://docs.docker.com/engine/install");
-            std::process::exit(1);
-        }
-    }
-
-    // Run docker info to check that docker is running
-    match docker_info {
+    match Command::new(oci.as_str())
+        .args(["info", "--format", "{{json .}}"])
+        .output()
+        .await
+    {
         Ok(output) if !output.status.success() => {
-            error!("Docker is not running! Please start it to use Cicada");
+            match oci {
+                OciBackend::Docker => error!("Docker is not running! Please start it to use Cicada"),
+                OciBackend::Podman => error!("Failed to run podman! Please make sure it is installed and working to use Cicada"),
+            }
+
             std::process::exit(1);
         }
         Ok(_) => {}
         Err(_) => {
-            error!("Cicada requires Docker to run. Please install it using your package manager or from https://docs.docker.com/engine/install");
+            match oci {
+                OciBackend::Docker => error!("Cicada requires Docker to run. Please install it using your package manager or from https://docs.docker.com/engine/install"),
+                OciBackend::Podman => error!("Cicada requires Podman to run. Please install it using your package manager or from https://podman.io/getting-started/installation"),
+            }
             std::process::exit(1);
         }
     }
