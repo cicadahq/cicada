@@ -66,7 +66,7 @@ tar = { version = "0.4.38", optional = true }
 tempfile = "3.5.0"
 time = { version = "0.3.20", features = ["serde"] }
 tokio = { version = "1.26.0", features = ["full"] }
-tracing = "0.1.37"
+tracing = "0.1.38"
 tracing-core = "0.1.30"
 tracing-subscriber = { version = "0.3.16", features = [
     "serde_json",
