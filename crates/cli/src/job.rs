@@ -55,17 +55,26 @@ impl CacheDirectory {
     }
 }
 
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(tag = "type")]
+pub enum TriggerOn {
+    #[default]
+    None,
+    Branches(Vec<String>),
+    All,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[serde(tag = "type")]
 pub enum Trigger {
     Options {
         #[serde(default)]
-        push: Vec<String>,
+        push: TriggerOn,
         #[serde(default)]
-        pull_request: Vec<String>,
+        pull_request: TriggerOn,
     },
-    Any,
     DenoFunction,
 }
 
