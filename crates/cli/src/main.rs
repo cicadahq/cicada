@@ -260,7 +260,7 @@ enum Commands {
     /// Run a cicada pipeline
     Run {
         /// Path to the pipeline file
-        pipeline: PathBuf,
+        pipeline: Option<PathBuf>,
 
         /// Name of the secret to use, these come from environment variables
         ///
@@ -348,6 +348,42 @@ impl Commands {
 
                 #[cfg(not(feature = "self-update"))]
                 runtime_checks(&oci_backend).await;
+
+                let pipeline = match pipeline {
+                    Some(pipeline) => pipeline,
+                    None => {
+                        let cicada_dir = resolve_cicada_dir()?;
+
+                        let mut pipelines = vec![];
+                        for entry in std::fs::read_dir(cicada_dir)? {
+                            let entry = entry?;
+                            if entry.path().extension() == Some(OsStr::new("ts")) {
+                                if let Some(pipeline) = entry.path().file_stem() {
+                                    pipelines.push(PathBuf::from(pipeline));
+                                }
+                            }
+                        }
+
+                        if pipelines.is_empty() {
+                            anyhow::bail!("No pipelines found");
+                        }
+
+                        let i = dialoguer::Select::with_theme(&ColorfulTheme::default())
+                            .with_prompt("Select a pipeline to run")
+                            .items(
+                                &pipelines
+                                    .iter()
+                                    .map(|p: &PathBuf| p.display())
+                                    .collect::<Vec<_>>(),
+                            )
+                            .default(0)
+                            .interact_opt()
+                            .map_err(|_| anyhow::anyhow!("Could not select pipeline"))?
+                            .ok_or_else(|| anyhow::anyhow!("No pipeline selected"))?;
+
+                        pipelines[i].clone()
+                    }
+                };
 
                 info!(
                     "\n{}{}\n{}{}\n",
@@ -784,10 +820,10 @@ impl Commands {
 
                                 let long_name = job.long_name(job_index);
 
-                                stdout_handle.await.with_context(|| {
+                                stdout_handle.in_current_span().await.with_context(|| {
                                     format!("Failed to read stdout for {long_name}")
                                 })?;
-                                stderr_handle.await.with_context(|| {
+                                stderr_handle.in_current_span().await.with_context(|| {
                                     format!("Failed to read stderr for {long_name}")
                                 })?;
 
