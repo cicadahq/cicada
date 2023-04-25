@@ -36,11 +36,18 @@ Deno.stat(new URL(modulePath)).catch(() => {
 const module = await import(modulePath);
 const pipeline: Pipeline = module.default;
 
+type TriggerOn = {
+  type: "branches";
+  branches: string[];
+} | {
+  type: "all";
+};
+
 type SerializedTrigger =
   | {
     type: "options";
-    push: string[] | "all";
-    pullRequest: string[] | "all";
+    push: TriggerOn;
+    pullRequest: TriggerOn;
   }
   | {
     type: "denoFunction";
@@ -151,10 +158,28 @@ const serializeStep = (step: Step): SerializedStep => {
 };
 
 const serializeTrigger = (trigger?: Trigger): SerializedTrigger => {
+  let push: TriggerOn = { type: "all" };
+  let pullRequest: TriggerOn = { type: "all" };
+  if (trigger) {
+    if (trigger.push && trigger.push !== "all") {
+      push = {
+        type: "branches",
+        branches: trigger.push,
+      };
+    }
+
+    if (trigger.pullRequest && trigger.pullRequest !== "all") {
+      pullRequest = {
+        type: "branches",
+        branches: trigger.pullRequest,
+      };
+    }
+  }
+
   return {
     type: "options",
-    push: trigger?.push ?? [],
-    pullRequest: trigger?.pullRequest ?? [],
+    push,
+    pullRequest,
   };
 };
 
