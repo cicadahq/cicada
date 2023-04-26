@@ -1,5 +1,6 @@
 use std::{collections::HashMap, path::Path, sync::Arc};
 
+use buildkit_rs::reference::Reference;
 use camino::Utf8PathBuf;
 use serde::{Deserialize, Serialize};
 use tracing::error;
@@ -238,6 +239,7 @@ pub struct InspectConfig {
 pub struct JobResolved {
     pub job: Box<Job>,
     pub image_info: Box<InspectInfo>,
+    pub image_reference: Reference,
 }
 
 impl JobResolved {
@@ -286,7 +288,7 @@ impl JobResolved {
             }
         }
 
-        let image = Image::new(&self.job.image)
+        let image = Image::reference(self.image_reference.clone())
             .with_platform(Platform::LINUX_AMD64)
             .with_custom_name(self.job.name.clone().unwrap())
             .with_resolve_mode(ResolveMode::Local);
@@ -336,6 +338,8 @@ impl JobResolved {
         if let Some(github_repository) = github {
             env.push(format!("GITHUB_REPOSITORY={github_repository}"));
         }
+
+        env.extend(self.job.env.iter().map(|(k, v)| format!("{k}={v}")));
 
         let mut prev_step = Arc::new(local_cp);
         for (step_index, step) in self.job.steps.iter().enumerate() {

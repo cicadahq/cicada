@@ -36,4 +36,12 @@ const buildJob = new Job({
   ],
 });
 
-export default new Pipeline([lintJob, buildJob]);
+export default new Pipeline(
+  [lintJob, buildJob],
+  {
+    on: {
+      pullRequest: ["main"],
+      push: ["main"],
+    },
+  },
+);

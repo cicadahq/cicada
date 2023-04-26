@@ -6,7 +6,7 @@ use tokio::process::Command;
 pub const DENO_VERSION: &str = "1.32.5";
 pub const DENO_VERSION_REQ: &str = ">=1.32";
 
-pub const BUILDKIT_VERSION: &str = "0.11.5";
+pub const BUILDKIT_VERSION: &str = "0.11.6";
 
 #[cfg(feature = "managed-bins")]
 pub const BUILDCTL_VERSION: &str = BUILDKIT_VERSION;
@@ -40,6 +40,10 @@ async fn path_buildctl_version() -> Option<Version> {
     let buildctl_version = String::from_utf8(buildctl_version).ok()?;
     let buildctl_version = buildctl_version.trim();
     let buildctl_trimmed = buildctl_version.split_whitespace().nth(2)?;
+    let buildctl_trimmed = buildctl_trimmed
+        .strip_prefix('v')
+        .unwrap_or(buildctl_trimmed);
+
     let buildctl_semver = Version::parse(buildctl_trimmed).ok()?;
 
     Some(buildctl_semver)

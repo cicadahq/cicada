@@ -1,10 +1,12 @@
 # Cicada
 
-> **[Cicada](https://cicada.build)**: Write CI/CD pipelines in TypeScript, test them locally
+> **[Cicada](https://cicada.build)**: Write CI/CD pipelines in TypeScript, test
+> them locally
 
 ## Quickstart
 
 Test a pipeline on your local device in < 2 minutes
+
 ```bash
 # Install Cicada
 npm install -g @cicadahq/cicada 
@@ -24,6 +26,7 @@ Deploy your pipeline to our cloud so it runs on every PR/commit:
 3. Push your pipeline to GitHub
 
 ## Example
+
 ```typescript
 import { Job, Pipeline } from "https://deno.land/x/cicada/mod.ts";
 
@@ -49,24 +52,30 @@ export default new Pipeline([job]);
 
 ## Terminology
 
-* **Pipeline**: Pipelines are TypeScript files like `build.ts`, `deploy.ts`, or `run_tests.ts`. They are checked into your repository and run when triggered by an event in your repository, or when triggered manually, or at a defined schedule. A pipeline takes one parameter: an array of jobs.
-* **Jobs**: A job is a lightweight container that executes code. It takes one parameter: an array of steps.
-* **Steps**: A step is either a shell script or Deno/TypeScript script that executes in its parent job’s container
-
+- **Pipeline**: Pipelines are TypeScript files like `build.ts`, `deploy.ts`, or
+  `run_tests.ts`. They are checked into your repository and run when triggered
+  by an event in your repository, or when triggered manually, or at a defined
+  schedule. A pipeline takes one parameter: an array of jobs.
+- **Jobs**: A job is a lightweight container that executes code. It takes one
+  parameter: an array of steps.
+- **Steps**: A step is either a shell script or Deno/TypeScript script that
+  executes in its parent job’s container
 
 ## 3rd party modules
-Check out [cicadahq/modules](https://github.com/cicadahq/modules)
 
+Check out [cicadahq/modules](https://github.com/cicadahq/modules)
 
 ## Support
 
-👉 **Docs**: [cicada.build/docs](https://cicada.build/docs)  
+👉 **Docs**: [cicada.build/docs](https://cicada.build/docs)
+
+👉 **Typescript API**: [deno.land/x/cicada](https://deno.land/x/cicada/mod.ts)
+
 👉 **Discord**: [cicada.build/discord](https://discord.gg/g2PRPm4u4Y)
 
-
 ## Enterprise
-Need self-hosted runners, advanced security and compliance, custom integrations, or something else? We can help!
+
+Need self-hosted runners, advanced security and compliance, custom integrations,
+or something else? We can help!
 
 Please email [brendan@fig.io](mailto:brendan@fig.io)
-
-

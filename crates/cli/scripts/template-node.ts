@@ -17,4 +17,12 @@ const build = new Job({
   ],
 });
 
-export default new Pipeline([build]);
+export default new Pipeline(
+  [build],
+  {
+    on: {
+      pullRequest: ["main"],
+      push: ["main"],
+    },
+  },
+);

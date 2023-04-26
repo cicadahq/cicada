@@ -12,7 +12,7 @@ mod update;
 mod util;
 
 use anyhow::{bail, Context, Result};
-use buildkit_rs::util::oci::OciBackend;
+use buildkit_rs::{reference::Reference, util::oci::OciBackend};
 use clap_complete::generate;
 use dialoguer::theme::ColorfulTheme;
 use logging::logging_init;
@@ -144,77 +144,26 @@ where
     Ok(())
 }
 
-/// Check that docker is installed and buildx is installed, other checks before running cicada can be added here
-async fn runtime_checks(oci: &OciBackend) {
+/// Check that oci backend is working before doing anything else for clean error messages
+async fn runtime_checks(oci: &OciBackend) -> anyhow::Result<()> {
     if std::env::var_os("CICADA_SKIP_CHECKS").is_some() {
-        return;
+        return Ok(());
     }
 
-    // We dont do any checks for podman yet
-    if oci == &OciBackend::Podman {
-        return;
-    }
-
-    let (docker_buildx_version, docker_info) = tokio::join!(
-        Command::new("docker").args(["buildx", "version"]).output(),
-        Command::new("docker")
-            .args(["info", "--format", "{{json .}}"])
-            .output(),
-    );
-
-    // Validate docker client version is at least 23
-    match docker_buildx_version {
-        Ok(output) => {
-            let buildx_error = || {
-                if std::env::consts::OS == "macos" || std::env::consts::OS == "windows" {
-                    info!("Cicada requires Docker Desktop v4.12 or above to run. Please upgrade using the Docker Desktop UI");
-                } else {
-                    info!("Cicada requires Docker Buildx >=0.9 to run. Please install it by updating Docker to v4.12 or by manually downloading from from https://github.com/docker/buildx#linux-packages");
-                }
-                std::process::exit(1);
-            };
-
-            if !output.status.success() {
-                buildx_error();
-            }
-
-            let version_str = String::from_utf8_lossy(&output.stdout);
-
-            let version_str_parts = version_str.split_whitespace().collect::<Vec<&str>>();
-
-            if version_str_parts[0] != "github.com/docker/buildx" {
-                buildx_error();
-            }
-
-            let version = version_str_parts[1]
-                .strip_prefix('v')
-                .unwrap_or(version_str_parts[1]);
-            let version_parts = version.split('.').collect::<Vec<&str>>();
-
-            let major = version_parts[0].parse::<u32>().unwrap_or_default();
-            let minor = version_parts[1].parse::<u32>().unwrap_or_default();
-
-            if major == 0 && minor < 9 {
-                buildx_error();
-            }
-        }
-        Err(_) => {
-            error!("Cicada requires Docker to run. Please install it using one of the methods or install it from https://docs.docker.com/engine/install");
-            std::process::exit(1);
-        }
-    }
-
-    // Run docker info to check that docker is running
-    match docker_info {
-        Ok(output) if !output.status.success() => {
-            error!("Docker is not running! Please start it to use Cicada");
-            std::process::exit(1);
-        }
-        Ok(_) => {}
-        Err(_) => {
-            error!("Cicada requires Docker to run. Please install it using one of the methods on https://docs.docker.com/engine/install");
-            std::process::exit(1);
-        }
+    match Command::new(oci.as_str())
+        .args(["info", "--format", "{{json .}}"])
+        .output()
+        .await
+    {
+        Ok(output) if !output.status.success() => Err(anyhow::anyhow!(match oci {
+            OciBackend::Docker => "Docker is not running! Please start it to use Cicada",
+            OciBackend::Podman => "Failed to run podman! Please make sure it is installed and working to use Cicada",
+        })),
+        Ok(_) => Ok(()),
+        Err(err) => Err(err).context(match oci {
+            OciBackend::Docker => "Cicada requires Docker to run. Please install it using your package manager or from https://docs.docker.com/engine/install",
+            OciBackend::Podman => "Cicada requires Podman to run. Please install it using your package manager or from https://podman.io/getting-started/installation",
+        }),
     }
 }
 
@@ -260,7 +209,7 @@ enum Commands {
     /// Run a cicada pipeline
     Run {
         /// Path to the pipeline file
-        pipeline: PathBuf,
+        pipeline: Option<PathBuf>,
 
         /// Name of the secret to use, these come from environment variables
         ///
@@ -312,15 +261,18 @@ enum Commands {
     Update,
     /// List all available completions
     Completions { shell: clap_complete::Shell },
+    /// Open a pipeline in your editor
     Open {
         /// Pipeline to open
         pipeline: PathBuf,
     },
+    /// Check for common issues
     #[command(hide = true)]
     Doctor {
         #[command(flatten)]
         oci_args: OciArgs,
     },
+    /// Debug commands
     #[command(subcommand, hide = true)]
     Debug(debug::DebugCommand),
 }
@@ -341,10 +293,46 @@ impl Commands {
                 let oci_backend = oci_args.oci_backend();
 
                 #[cfg(feature = "self-update")]
-                tokio::join!(check_for_update(), runtime_checks(&oci_backend));
+                tokio::join!(check_for_update(), runtime_checks(&oci_backend)).1?;
 
                 #[cfg(not(feature = "self-update"))]
-                runtime_checks(&oci_backend).await;
+                runtime_checks(&oci_backend).await?;
+
+                let pipeline = match pipeline {
+                    Some(pipeline) => pipeline,
+                    None => {
+                        let cicada_dir = resolve_cicada_dir()?;
+
+                        let mut pipelines = vec![];
+                        for entry in std::fs::read_dir(cicada_dir)? {
+                            let entry = entry?;
+                            if entry.path().extension() == Some(OsStr::new("ts")) {
+                                if let Some(pipeline) = entry.path().file_stem() {
+                                    pipelines.push(PathBuf::from(pipeline));
+                                }
+                            }
+                        }
+
+                        if pipelines.is_empty() {
+                            anyhow::bail!("No pipelines found");
+                        }
+
+                        let i = dialoguer::Select::with_theme(&ColorfulTheme::default())
+                            .with_prompt("Select a pipeline to run")
+                            .items(
+                                &pipelines
+                                    .iter()
+                                    .map(|p: &PathBuf| p.display())
+                                    .collect::<Vec<_>>(),
+                            )
+                            .default(0)
+                            .interact_opt()
+                            .map_err(|_| anyhow::anyhow!("Could not select pipeline"))?
+                            .ok_or_else(|| anyhow::anyhow!("No pipeline selected"))?;
+
+                        pipelines[i].clone()
+                    }
+                };
 
                 info!(
                     "\n{}{}\n{}{}\n",
@@ -352,9 +340,10 @@ impl Commands {
                     " Cicada is in alpha, it may not work as expected"
                         .if_supports_color(Stream::Stderr, |s| s.bold()),
                     "  ◸ ▽ ◹  ".if_supports_color(Stream::Stderr, |s| s.fg_rgb::<145, 209, 249>()),
-                    " Please report any issues here: http://github.com/cicadahq/cicada"
+                    " Please report any issues here: https://github.com/cicadahq/cicada"
                         .if_supports_color(Stream::Stderr, |s| s.bold())
                 );
+                eprintln!();
 
                 let deno_exe = deno_exe().await?;
                 let buildctl_exe = buildctl_exe().await?;
@@ -395,32 +384,16 @@ impl Commands {
                     None
                 };
 
-                let pipeline = resolve_pipeline(pipeline)?;
-                let pipeline_file_name = pipeline.file_name().unwrap();
+                let pipeline_path = resolve_pipeline(pipeline)?;
+                let pipeline_file_name = pipeline_path.file_name().unwrap();
 
-                #[cfg(feature = "telemetry")]
-                let telem_join = segment_enabled().then(|| {
-                    let pipeline_name = pipeline_file_name.to_string_lossy().to_string();
-                    let pipeline_length = std::fs::read_to_string(&pipeline)
-                        .map(|f| f.lines().count())
-                        .ok();
-
-                    tokio::spawn(
-                        TrackEvent::PipelineExecuted {
-                            pipeline_name,
-                            pipeline_length,
-                        }
-                        .post(),
-                    )
-                });
-
-                let project_directory = pipeline.parent().unwrap().parent().unwrap();
-                let pipeline_url = Url::from_file_path(&pipeline)
+                let project_directory = pipeline_path.parent().unwrap().parent().unwrap();
+                let pipeline_url = Url::from_file_path(&pipeline_path)
                     .map_err(|_| anyhow::anyhow!("Unable to convert pipeline path to URL"))?;
 
                 let gh_repo = github_repo().await.ok().flatten();
 
-                info!("Building pipeline: {}", pipeline.display().bold());
+                info!("Building pipeline: {}", pipeline_path.display().bold());
 
                 let out = {
                     let tmp_file = tempfile::NamedTempFile::new()?;
@@ -479,6 +452,28 @@ impl Commands {
 
                 info!(trigger = true);
 
+                // Only send telemetry when we know we should execute
+                #[cfg(feature = "telemetry")]
+                let telem_join = segment_enabled().then(|| {
+                    let pipeline_name = pipeline_file_name.to_string_lossy().to_string();
+                    let pipeline_length = std::fs::read_to_string(&pipeline_path)
+                        .map(|f| f.lines().count())
+                        .ok();
+
+                    tokio::spawn(
+                        TrackEvent::PipelineExecuted {
+                            pipeline_name,
+                            pipeline_length,
+                            job_count: pipeline.jobs.len(),
+                            step_count: pipeline
+                                .jobs
+                                .iter()
+                                .fold(0, |acc, job| acc + job.steps.len()),
+                        }
+                        .post(),
+                    )
+                });
+
                 let inspect_output = Command::new(oci_backend.as_str())
                     .args([
                         "inspect",
@@ -502,6 +497,8 @@ impl Commands {
                             .args(["start", "cicada-buildkitd"])
                             .status()
                             .await?;
+
+                        eprintln!();
                     }
                 } else {
                     info!("Starting buildkitd container...\n");
@@ -513,7 +510,7 @@ impl Commands {
                             "--name",
                             "cicada-buildkitd",
                             "--privileged",
-                            &format!("docker.io/moby/buildkit:{BUILDKIT_VERSION}"),
+                            &format!("docker.io/moby/buildkit:v{BUILDKIT_VERSION}"),
                         ])
                         .output()
                         .await?;
@@ -524,40 +521,42 @@ impl Commands {
                             String::from_utf8_lossy(&output.stderr)
                         );
                     }
+
+                    eprintln!();
                 }
 
                 // Populate the jobs with `docker inspect` data
                 let mut populated_jobs: Vec<JobResolved> = vec![];
                 let mut image_info_map: HashMap<String, InspectInfo> = HashMap::new();
                 for job in pipeline.jobs {
-                    let resolved_image_name = buildkit_rs::reference::Reference::parse(&job.image)
+                    let mut image_reference = Reference::parse_normalized_named(&job.image)
                         .with_context(|| {
                             format!(
                                 "Unable to parse image name: {}",
                                 job.image.to_string().bold()
                             )
                         })?;
-                    let resolved_image_name_str = resolved_image_name.to_string();
 
-                    let image_info = match image_info_map.get(&resolved_image_name_str) {
+                    if image_reference.tag.is_none() && image_reference.digest.is_none() {
+                        image_reference.tag = Some("latest".into());
+                    }
+
+                    let image_reference_str = image_reference.to_string();
+
+                    let image_info = match image_info_map.get(&image_reference_str) {
                         Some(inspect_info) => inspect_info.clone(),
                         None => {
-                            info!("Pulling image: {}", resolved_image_name_str.bold());
+                            info!("Pulling image: {}", image_reference_str.bold());
 
                             // Run pull to grab the image
                             let mut pull_child = Command::new(oci_backend.as_str())
-                                .args([
-                                    "pull",
-                                    &resolved_image_name_str,
-                                    "--platform",
-                                    "linux/amd64",
-                                ])
+                                .args(["pull", &image_reference_str, "--platform", "linux/amd64"])
                                 .spawn()?;
 
                             if !pull_child.wait().await?.success() {
                                 anyhow::bail!(
                                     "Unable to pull image: {}",
-                                    resolved_image_name_str.bold()
+                                    image_reference_str.bold()
                                 );
                             }
 
@@ -567,7 +566,7 @@ impl Commands {
                             let docker_inspect_output = Command::new(oci_backend.as_str())
                                 .args([
                                     "inspect",
-                                    &resolved_image_name_str,
+                                    &image_reference_str,
                                     "--type",
                                     "image",
                                     "--format",
@@ -579,7 +578,7 @@ impl Commands {
                             if !docker_inspect_output.status.success() {
                                 anyhow::bail!(
                                     "Unable to inspect image: {}",
-                                    resolved_image_name_str.bold()
+                                    image_reference_str.bold()
                                 );
                             }
 
@@ -588,8 +587,7 @@ impl Commands {
                                 serde_json::from_slice(&docker_inspect_output.stdout)
                                     .context("Unable to deserialize image info")?;
 
-                            image_info_map
-                                .insert(resolved_image_name_str.clone(), image_info.clone());
+                            image_info_map.insert(image_reference_str.clone(), image_info.clone());
 
                             image_info
                         }
@@ -598,6 +596,7 @@ impl Commands {
                     populated_jobs.push(JobResolved {
                         job: Box::new(job),
                         image_info: Box::new(image_info),
+                        image_reference,
                     });
                 }
 
@@ -770,10 +769,10 @@ impl Commands {
 
                                 let long_name = job.long_name(job_index);
 
-                                stdout_handle.await.with_context(|| {
+                                stdout_handle.in_current_span().await.with_context(|| {
                                     format!("Failed to read stdout for {long_name}")
                                 })?;
-                                stderr_handle.await.with_context(|| {
+                                stderr_handle.in_current_span().await.with_context(|| {
                                     format!("Failed to read stderr for {long_name}")
                                 })?;
 
@@ -813,7 +812,7 @@ impl Commands {
                                 }
                             }
                         }
-                        Err(e) => bail!(e),
+                        Err(err) => bail!(err),
                     }
                 }
 
@@ -874,7 +873,7 @@ impl Commands {
                 )
                 .await?;
 
-                if std::env::var("TERM_PROGRAM").as_deref() == Ok("vscode") {
+                if !cfg!(windows) {
                     let bin_name = match std::env::var("TERM_PROGRAM_VERSION") {
                         Ok(version) if version.contains("insider") => "code-insiders",
                         _ => "code",
@@ -886,24 +885,35 @@ impl Commands {
                         .interact()?;
 
                     if should_install {
-                        // Check if deno extension is installed
-                        let deno_extension_installed = String::from_utf8_lossy(
-                            &Command::new(bin_name)
-                                .args(["--list-extensions"])
-                                .output()
-                                .await?
-                                .stdout,
-                        )
-                        .contains("denoland.vscode-deno");
+                        let output = Command::new(bin_name)
+                            .args(["--list-extensions"])
+                            .output()
+                            .await;
 
-                        if !deno_extension_installed {
-                            info!("Installing Deno extension for VSCode");
-                            Command::new(bin_name)
-                                .args(["--install-extension", "denoland.vscode-deno"])
-                                .spawn()
-                                .unwrap()
-                                .wait()
-                                .await?;
+                        match output {
+                            Ok(output) => {
+                                // Check if deno extension is installed
+                                let deno_extension_installed =
+                                    String::from_utf8_lossy(&output.stdout)
+                                        .contains("denoland.vscode-deno");
+
+                                if !deno_extension_installed {
+                                    info!("Installing Deno extension for VSCode");
+                                    let res = Command::new(bin_name)
+                                        .args(["--install-extension", "denoland.vscode-deno"])
+                                        .spawn()
+                                        .unwrap()
+                                        .wait()
+                                        .await;
+
+                                    if let Err(err) = res {
+                                        error!("Failed to install Deno extension: {err}");
+                                    }
+                                }
+                            }
+                            Err(err) => {
+                                error!("Failed to check if Deno extension is installed: {err}");
+                            }
                         }
 
                         // Check for the .vscode/settings.json file
@@ -915,7 +925,7 @@ impl Commands {
                             std::fs::create_dir_all(".vscode")?;
                             tokio::fs::write(
                                 &settings_path,
-                                "{\"\n  deno.enablePaths\": [\".cicada\"]\n}",
+                                "{\n  \"deno.enablePaths\": [\".cicada\"]\n}",
                             )
                             .await?;
                         }
@@ -933,7 +943,7 @@ impl Commands {
                 info!(
                     "\n{} Initialized Cicada pipeline: {}\n{} Run it with: {}\n ",
                     " ◥◣ ▲ ◢◤ ".fg_rgb::<145, 209, 249>(),
-                    pipeline_name.bold(),
+                    pipeline_path.display().bold(),
                     "  ◸ ▽ ◹  ".fg_rgb::<145, 209, 249>(),
                     format!("cicada run {pipeline_name}").bold(),
                 );
@@ -961,7 +971,7 @@ impl Commands {
                 info!(
                     "\n{} Initialized Cicada pipeline: {}\n{} Run it with: {}\n",
                     " ◥◣ ▲ ◢◤ ".fg_rgb::<145, 209, 249>(),
-                    pipeline.bold(),
+                    pipeline_path.display().bold(),
                     "  ◸ ▽ ◹  ".fg_rgb::<145, 209, 249>(),
                     format!("cicada run {pipeline}").bold(),
                 );
@@ -1008,7 +1018,7 @@ impl Commands {
             }
             Commands::Doctor { oci_args } => {
                 info!("Checking for common problems...");
-                runtime_checks(&oci_args.oci_backend()).await;
+                runtime_checks(&oci_args.oci_backend()).await?;
                 info!("\nAll checks passed!");
             }
             Commands::Debug(debug_command) => debug_command.run().await?,

@@ -1,4 +1,4 @@
-ARG CICADA_VERSION=0.1.41
+ARG CICADA_VERSION=0.1.46
 
 FROM buildpack-deps:20.04-curl AS download
 

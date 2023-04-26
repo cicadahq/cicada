@@ -1,6 +1,6 @@
 {
   "name": "@cicadahq/cicada",
-  "version": "0.1.41",
+  "version": "0.1.46",
   "description": "Cicada is a next-generation CI framework using TypeScript",
   "repository": {
     "type": "git",
@@ -10,7 +10,7 @@
     "url": "https://github.com/cicadahq/cicada/issues"
   },
   "homepage": "https://cicada.build",
-  "license": "(MIT OR Apache-2.0)",
+  "license": "MIT",
   "scripts": {
     "install": "node install.js"
   },
