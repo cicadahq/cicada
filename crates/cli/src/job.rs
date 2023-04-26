@@ -290,7 +290,6 @@ impl JobResolved {
 
         let image = Image::reference(self.image_reference.clone())
             .with_platform(Platform::LINUX_AMD64)
-            .with_custom_name(self.job.name.clone().unwrap())
             .with_resolve_mode(ResolveMode::Local);
 
         let deno_image = Image::new(format!("docker.io/denoland/deno:bin-{DENO_VERSION}"))
