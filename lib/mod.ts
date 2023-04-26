@@ -224,6 +224,8 @@ interface CommonImageOptions {
   workingDirectory?: FilePath;
 
   run?: string[];
+
+  ports?: (number | string)[];
 }
 
 /**
