@@ -145,9 +145,9 @@ where
 }
 
 /// Check that oci backend is working before doing anything else for clean error messages
-async fn runtime_checks(oci: &OciBackend) {
+async fn runtime_checks(oci: &OciBackend) -> anyhow::Result<()> {
     if std::env::var_os("CICADA_SKIP_CHECKS").is_some() {
-        return;
+        return Ok(());
     }
 
     match Command::new(oci.as_str())
@@ -155,22 +155,15 @@ async fn runtime_checks(oci: &OciBackend) {
         .output()
         .await
     {
-        Ok(output) if !output.status.success() => {
-            match oci {
-                OciBackend::Docker => error!("Docker is not running! Please start it to use Cicada"),
-                OciBackend::Podman => error!("Failed to run podman! Please make sure it is installed and working to use Cicada"),
-            }
-
-            std::process::exit(1);
-        }
-        Ok(_) => {}
-        Err(_) => {
-            match oci {
-                OciBackend::Docker => error!("Cicada requires Docker to run. Please install it using your package manager or from https://docs.docker.com/engine/install"),
-                OciBackend::Podman => error!("Cicada requires Podman to run. Please install it using your package manager or from https://podman.io/getting-started/installation"),
-            }
-            std::process::exit(1);
-        }
+        Ok(output) if !output.status.success() => Err(anyhow::anyhow!(match oci {
+            OciBackend::Docker => "Docker is not running! Please start it to use Cicada",
+            OciBackend::Podman => "Failed to run podman! Please make sure it is installed and working to use Cicada",
+        })),
+        Ok(_) => Ok(()),
+        Err(err) => Err(err).context(match oci {
+            OciBackend::Docker => "Cicada requires Docker to run. Please install it using your package manager or from https://docs.docker.com/engine/install",
+            OciBackend::Podman => "Cicada requires Podman to run. Please install it using your package manager or from https://podman.io/getting-started/installation",
+        }),
     }
 }
 
@@ -300,10 +293,10 @@ impl Commands {
                 let oci_backend = oci_args.oci_backend();
 
                 #[cfg(feature = "self-update")]
-                tokio::join!(check_for_update(), runtime_checks(&oci_backend));
+                tokio::join!(check_for_update(), runtime_checks(&oci_backend)).1?;
 
                 #[cfg(not(feature = "self-update"))]
-                runtime_checks(&oci_backend).await;
+                runtime_checks(&oci_backend).await?;
 
                 let pipeline = match pipeline {
                     Some(pipeline) => pipeline,
@@ -1025,7 +1018,7 @@ impl Commands {
             }
             Commands::Doctor { oci_args } => {
                 info!("Checking for common problems...");
-                runtime_checks(&oci_args.oci_backend()).await;
+                runtime_checks(&oci_args.oci_backend()).await?;
                 info!("\nAll checks passed!");
             }
             Commands::Debug(debug_command) => debug_command.run().await?,
