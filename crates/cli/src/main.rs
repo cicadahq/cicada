@@ -119,7 +119,7 @@ where
         .arg("--allow-env=CICADA_JOB");
 
     // Check for a `deno.json` file in the project directory, otherwise set no config file
-
+    // TODO: we should add a allow-read for the config file if its outside the project directory
     let deno_config = proj_path.join("deno.json");
     if !deno_config.exists() {
         deno_command.arg("--no-config");
