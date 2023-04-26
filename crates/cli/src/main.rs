@@ -110,12 +110,22 @@ where
     A: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
 {
-    let mut child = Command::new(deno_exe)
+    let mut deno_command = Command::new(deno_exe);
+    deno_command
         .arg("run")
         .arg(format!("--allow-read={}", proj_path.display()))
         .arg(format!("--allow-write={}", out_path.display()))
         .arg("--allow-net")
-        .arg("--allow-env=CICADA_JOB")
+        .arg("--allow-env=CICADA_JOB");
+
+    // Check for a `deno.json` file in the project directory, otherwise set no config file
+
+    let deno_config = proj_path.join("deno.json");
+    if !deno_config.exists() {
+        deno_command.arg("--no-config");
+    }
+
+    let mut child = deno_command
         .arg("-")
         .args(args)
         .current_dir(proj_path)
