@@ -186,10 +186,7 @@ export type Step =
   | StepFn
   | string;
 
-/**
- * The options for a job, including the name, base image, environment variables, secrets, folder cache, and steps.
- */
-export interface JobOptions {
+interface CommonImageOptions {
   /**
    * The docker image to use for this job.
    *
@@ -226,6 +223,13 @@ export interface JobOptions {
    */
   workingDirectory?: FilePath;
 
+  run?: string[];
+}
+
+/**
+ * The options for a job, including the name, base image, environment variables, secrets, folder cache, and steps.
+ */
+export interface JobOptions extends CommonImageOptions {
   /**
    * A list of jobs that must run before the current job can be executed.
    */
@@ -238,6 +242,16 @@ export interface JobOptions {
    * @default "stop"
    */
   onFail?: "ignore" | "stop";
+}
+
+/**
+ * An image that is built by Cicada
+ */
+export interface ImageOptions extends CommonImageOptions {
+  /**
+   * The name of the job. This will be displayed in the logs and can be referenced in another job's "dependsOn" property
+   */
+  name: string;
 }
 
 /**
@@ -254,6 +268,10 @@ export class Job {
    * @param options - The options for the job.
    */
   constructor(public options: JobOptions) {}
+}
+
+export class Image {
+  constructor(public options: ImageOptions) {}
 }
 
 /**

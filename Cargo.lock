@@ -239,7 +239,7 @@ dependencies = [
 [[package]]
 name = "buildkit-rs"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#785cd24acda8dbbb0957a321798d2dbd7b086499"
+source = "git+https://github.com/cicadahq/buildkit-rs.git#ba3b7c53ce360d3dff824f8de44177c0cc258675"
 dependencies = [
  "buildkit-rs-client",
  "buildkit-rs-ignore",
@@ -252,7 +252,7 @@ dependencies = [
 [[package]]
 name = "buildkit-rs-client"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#785cd24acda8dbbb0957a321798d2dbd7b086499"
+source = "git+https://github.com/cicadahq/buildkit-rs.git#ba3b7c53ce360d3dff824f8de44177c0cc258675"
 dependencies = [
  "bitflags 2.2.1",
  "buildkit-rs-llb",
@@ -261,9 +261,11 @@ dependencies = [
  "bytes",
  "futures",
  "num",
+ "oci-spec",
  "path-clean",
  "pin-project",
  "rand",
+ "serde_json",
  "thiserror",
  "tokio",
  "tokio-stream",
@@ -280,7 +282,7 @@ dependencies = [
 [[package]]
 name = "buildkit-rs-ignore"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#785cd24acda8dbbb0957a321798d2dbd7b086499"
+source = "git+https://github.com/cicadahq/buildkit-rs.git#ba3b7c53ce360d3dff824f8de44177c0cc258675"
 dependencies = [
  "path-clean",
  "regex",
@@ -290,7 +292,7 @@ dependencies = [
 [[package]]
 name = "buildkit-rs-llb"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#785cd24acda8dbbb0957a321798d2dbd7b086499"
+source = "git+https://github.com/cicadahq/buildkit-rs.git#ba3b7c53ce360d3dff824f8de44177c0cc258675"
 dependencies = [
  "buildkit-rs-proto",
  "buildkit-rs-reference",
@@ -304,7 +306,7 @@ dependencies = [
 [[package]]
 name = "buildkit-rs-proto"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#785cd24acda8dbbb0957a321798d2dbd7b086499"
+source = "git+https://github.com/cicadahq/buildkit-rs.git#ba3b7c53ce360d3dff824f8de44177c0cc258675"
 dependencies = [
  "prost",
  "prost-build",
@@ -316,7 +318,7 @@ dependencies = [
 [[package]]
 name = "buildkit-rs-reference"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#785cd24acda8dbbb0957a321798d2dbd7b086499"
+source = "git+https://github.com/cicadahq/buildkit-rs.git#ba3b7c53ce360d3dff824f8de44177c0cc258675"
 dependencies = [
  "once_cell",
  "regex",
@@ -326,7 +328,7 @@ dependencies = [
 [[package]]
 name = "buildkit-rs-util"
 version = "0.1.0"
-source = "git+https://github.com/cicadahq/buildkit-rs.git#785cd24acda8dbbb0957a321798d2dbd7b086499"
+source = "git+https://github.com/cicadahq/buildkit-rs.git#ba3b7c53ce360d3dff824f8de44177c0cc258675"
 
 [[package]]
 name = "bumpalo"
@@ -385,6 +387,7 @@ dependencies = [
  "futures",
  "humansize",
  "indicatif",
+ "oci-spec",
  "once_cell",
  "open",
  "owo-colors",
@@ -537,6 +540,41 @@ dependencies = [
 ]
 
 [[package]]
+name = "darling"
+version = "0.14.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7b750cb3417fd1b327431a470f388520309479ab0bf5e323505daf0290cd3850"
+dependencies = [
+ "darling_core",
+ "darling_macro",
+]
+
+[[package]]
+name = "darling_core"
+version = "0.14.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "109c1ca6e6b7f82cc233a97004ea8ed7ca123a9af07a8230878fcfda9b158bf0"
+dependencies = [
+ "fnv",
+ "ident_case",
+ "proc-macro2",
+ "quote",
+ "strsim",
+ "syn 1.0.109",
+]
+
+[[package]]
+name = "darling_macro"
+version = "0.14.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a4aab4dbc9f7611d8b55048a3a16d2d010c2c8334e46304b40ac1cc14bf3b48e"
+dependencies = [
+ "darling_core",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
 name = "debugid"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -544,6 +582,37 @@ checksum = "bef552e6f588e446098f6ba40d89ac146c8c7b64aade83c051ee00bb5d2bc18d"
 dependencies = [
  "serde",
  "uuid",
+]
+
+[[package]]
+name = "derive_builder"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8d67778784b508018359cbc8696edb3db78160bab2c2a28ba7f56ef6932997f8"
+dependencies = [
+ "derive_builder_macro",
+]
+
+[[package]]
+name = "derive_builder_core"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c11bdc11a0c47bc7d37d582b5285da6849c96681023680b906673c5707af7b0f"
+dependencies = [
+ "darling",
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
+name = "derive_builder_macro"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ebcda35c7a396850a55ffeac740804b40ffec779b98fffbb1738f4033f0ee79e"
+dependencies = [
+ "derive_builder_core",
+ "syn 1.0.109",
 ]
 
 [[package]]
@@ -815,6 +884,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "getset"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e45727250e75cc04ff2846a66397da8ef2b3db8e40e0cef4df67950a07621eb9"
+dependencies = [
+ "proc-macro-error",
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
 name = "gimli"
 version = "0.27.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1002,6 +1083,12 @@ dependencies = [
  "tokio",
  "tokio-native-tls",
 ]
+
+[[package]]
+name = "ident_case"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b9e0384b61958566e926dc50660321d12159025e767c18e043daf26b70104c39"
 
 [[package]]
 name = "idna"
@@ -1366,6 +1453,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "oci-spec"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "214b837f7dde5026f2028ead5ae720073277c19f82ff85623b142c39d4b843e7"
+dependencies = [
+ "derive_builder",
+ "getset",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "once_cell"
 version = "1.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1373,9 +1473,9 @@ checksum = "b7e5500299e16ebb147ae15a00a942af264cf3688f47923b8fc2cd5858f23ad3"
 
 [[package]]
 name = "open"
-version = "4.0.2"
+version = "4.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "873240a4a404d44c8cd1bf394359245d466a5695771fea15a79cafbc5e5cf4d7"
+checksum = "d16814a067484415fda653868c9be0ac5f2abd2ef5d951082a5f2fe1b3662944"
 dependencies = [
  "is-wsl",
  "pathdiff",
@@ -1560,6 +1660,30 @@ checksum = "6c8646e95016a7a6c4adea95bafa8a16baab64b583356217f2c85db4a39d9a86"
 dependencies = [
  "proc-macro2",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "proc-macro-error"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "da25490ff9892aab3fcf7c36f08cfb902dd3e71ca0f9f9517bea02a73a5ce38c"
+dependencies = [
+ "proc-macro-error-attr",
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+ "version_check",
+]
+
+[[package]]
+name = "proc-macro-error-attr"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a1be40180e52ecc98ad80b184934baf3d0d29f979574e439af5a55274b35f869"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "version_check",
 ]
 
 [[package]]
@@ -2362,9 +2486,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-stream"
-version = "0.1.13"
+version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "76cd2598a37719e3cd4c28af93f978506a97a2920ef4d96e4b12e38b8cbc8940"
+checksum = "397c988d37662c7dda6d2208364a706264bf3d6138b11d436cbac0ad38832842"
 dependencies = [
  "futures-core",
  "pin-project-lite",

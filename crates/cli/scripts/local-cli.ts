@@ -1,6 +1,8 @@
 import {
   CacheDirectoryOptions,
   FilePath,
+  Image,
+  Job,
   Pipeline,
   Shell,
   Step,
@@ -34,7 +36,19 @@ Deno.stat(new URL(modulePath)).catch(() => {
 });
 
 const module = await import(modulePath);
-const pipeline: Pipeline = module.default;
+
+let pipeline: Pipeline | Image;
+
+if (module.default instanceof Pipeline || module.default instanceof Image) {
+  pipeline = module.default;
+} else {
+  console.error(
+    "%cError:",
+    "color: red; font-weight: bold;",
+    "Module does not export a Pipeline or Image",
+  );
+  Deno.exit(1);
+}
 
 type SerializedTrigger =
   | {
@@ -47,6 +61,7 @@ type SerializedTrigger =
   };
 
 type SerializedPipeline = {
+  type: "pipeline";
   jobs: SerializedJob[];
   on: SerializedTrigger;
 };
@@ -55,6 +70,10 @@ type SerializedRun =
   | {
     type: "command";
     command: string;
+  }
+  | {
+    type: "args";
+    args: string[];
   }
   | {
     type: "denoFunction";
@@ -109,11 +128,16 @@ const serializeShell = (shell: Shell): SerializedShell => {
   }
 };
 
-const serializeRun = (run: string | StepFn): SerializedRun => {
+const serializeRun = (run: string | string[] | StepFn): SerializedRun => {
   if (typeof run === "string") {
     return {
       type: "command",
       command: run,
+    } as const;
+  } else if (Array.isArray(run)) {
+    return {
+      type: "args",
+      args: run,
     } as const;
   } else if (typeof run === "function") {
     return {
@@ -158,30 +182,47 @@ const serializeTrigger = (trigger?: Trigger): SerializedTrigger => {
   };
 };
 
+const serializeJob = (job: Job): SerializedJob => {
+  return {
+    uuid: job._uuid,
+    image: job.options.image,
+    steps: job.options.steps.map(serializeStep),
+    name: job.options.name,
+    env: job.options.env,
+    cacheDirectories: job.options.cacheDirectories?.map(mapCache),
+    workingDirectory: job.options.workingDirectory,
+    dependsOn: job.options.dependsOn?.map((j) => j._uuid),
+    onFail: job.options.onFail,
+  };
+};
+
 const serializePipeline = (pipeline: Pipeline): SerializedPipeline => {
   const jobs: SerializedJob[] = [];
 
   for (const job of pipeline.jobs) {
-    jobs.push({
-      uuid: job._uuid,
-      image: job.options.image,
-      steps: job.options.steps.map(serializeStep),
-      name: job.options.name,
-      env: job.options.env,
-      cacheDirectories: job.options.cacheDirectories?.map(mapCache),
-      workingDirectory: job.options.workingDirectory,
-      dependsOn: job.options.dependsOn?.map((j) => j._uuid),
-      onFail: job.options.onFail,
-    });
+    jobs.push(serializeJob(job));
   }
 
   return {
+    type: "pipeline",
     jobs,
     // name: pipeline.options?.name ?? undefined,
     on: serializeTrigger(pipeline.options?.on),
   };
 };
 
-const serializedPipeline = serializePipeline(pipeline);
+let object;
+if (pipeline instanceof Pipeline) {
+  object = serializePipeline(pipeline);
+} else {
+  const job = new Job({
+    ...pipeline.options,
+  });
 
-await Deno.writeTextFile(outPath, JSON.stringify(serializedPipeline, null, 2));
+  object = {
+    type: "image",
+    ...serializeJob(job),
+  };
+}
+
+await Deno.writeTextFile(outPath, JSON.stringify(object, null, 2));

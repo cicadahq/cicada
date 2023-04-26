@@ -82,6 +82,7 @@ pub enum Shell {
 #[serde(tag = "type")]
 pub enum StepRun {
     Command { command: String },
+    Args { args: Vec<String> },
     DenoFunction,
 }
 
@@ -123,6 +124,7 @@ impl Step {
                     Exec::new(args)
                 }
             },
+            StepRun::Args { args } => Exec::new(args.clone()),
             StepRun::DenoFunction => Exec::new([
                 "cicada",
                 "step",
@@ -137,10 +139,14 @@ impl Step {
             (Some(name), StepRun::Command { command }) => {
                 exec.with_custom_name(format!("{name} ({step_index}): {command}"))
             }
+            (Some(name), StepRun::Args { args }) => {
+                exec.with_custom_name(format!("{name} ({step_index}): {}", args.join(" ")))
+            }
             (Some(name), StepRun::DenoFunction) => {
                 exec.with_custom_name(format!("{name} ({step_index})"))
             }
             (None, StepRun::Command { command }) => exec.with_custom_name(command.clone()),
+            (None, StepRun::Args { args }) => exec.with_custom_name(format!("{}", args.join(" "))),
             (None, StepRun::DenoFunction) => exec.with_custom_name(format!("Step {step_index}")),
         };
 
@@ -379,9 +385,17 @@ impl JobResolved {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Pipeline {
     pub jobs: Vec<Job>,
     pub on: Option<Trigger>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(tag = "type")]
+pub enum CicadaType {
+    Pipeline(Pipeline),
+    Image(Job),
 }

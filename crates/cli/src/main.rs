@@ -42,7 +42,7 @@ use crate::{
     bin_deps::{buildctl_exe, deno_exe, BUILDKIT_VERSION},
     dag::{invert_graph, topological_sort, Node},
     git::github_repo,
-    job::{InspectInfo, JobResolved, OnFail, Pipeline},
+    job::{InspectInfo, JobResolved, OnFail, Pipeline, CicadaType},
 };
 
 // Transform from https://deno.land/x/cicada/mod.ts to https://deno.land/x/cicada@vX.Y.X/mod.ts
@@ -50,6 +50,10 @@ static DENO_LAND_REGEX: Lazy<regex::Regex> =
     Lazy::new(|| regex::Regex::new(r#"deno.land/x/cicada/"#).unwrap());
 
 fn replace_with_version(s: &str) -> String {
+    if std::env::var_os("CICADA_UNVERSIONED_DENO").is_some() {
+        return s.to_owned();
+    }
+
     DENO_LAND_REGEX
         .replace_all(s, |_caps: &regex::Captures| {
             format!("deno.land/x/cicada@v{}/", env!("CARGO_PKG_VERSION"))
@@ -414,7 +418,14 @@ impl Commands {
                     std::fs::read_to_string(tmp_file.path())?
                 };
 
-                let pipeline = serde_json::from_str::<Pipeline>(&out)?;
+                let pipeline = serde_json::from_str::<CicadaType>(&out)?;
+
+                dbg!(&pipeline);
+
+                let pipeline = match pipeline {
+                    CicadaType::Pipeline(pipeline) => pipeline,
+                    CicadaType::Image(image) => Pipeline { jobs: vec![image], ..Default::default() },
+                };
 
                 // Check if we should run this pipeline based on the git event
                 if let (Ok(git_event), Ok(base_ref)) = (
@@ -672,6 +683,26 @@ impl Commands {
 
                         tokio::spawn(
                             async move {
+                                let name = job.job.name.clone().unwrap().replace('\"', "\"\"");
+
+                                let config = oci_spec::image::ConfigBuilder::default()
+                                    // .user("root".to_string())
+                                    // .working_dir(job.working_directory.clone())
+                                    // .env(["ABC=123".to_owned()])
+                                    // .cmd(["/bin/bash".to_oswned()])
+                                    .entrypoint(["/app/hello-world".to_owned()])
+                                    .build()
+                                    .unwrap();
+                        
+                                let image_config = oci_spec::image::ImageConfigurationBuilder::default()
+                                    .config(config)
+                                    .build()
+                                    .unwrap();
+                            
+                                let image_config_json = serde_json::to_string(&image_config)
+                                    .context("Unable to serialize OCI spec to JSON")?
+                                    .replace("\"", "\"\"");
+
                                 let mut buildctl = Command::new(buildctl_exe);
                                 buildctl
                                     .arg("build")
@@ -679,6 +710,10 @@ impl Commands {
                                     .arg(format!("local={}", project_directory.display()))
                                     .arg("--progress")
                                     .arg("plain")
+                                    .arg("--output")
+                                    .arg(dbg!(format!(
+                                        "type=docker,\"name={name}\",\"containerimage.config={image_config_json}\""
+                                    )))
                                     .env(
                                         "BUILDKIT_HOST",
                                         format!(
@@ -716,32 +751,7 @@ impl Commands {
                                 drop(stdin);
 
                                 // Print the output as it comes in
-                                let stdout = buildctl_child.stdout.take().unwrap();
                                 let stderr = buildctl_child.stderr.take().unwrap();
-
-                                // TODO: Make this into a function that takes a stream, a color, and a display name
-                                let stdout_handle = tokio::spawn(
-                                    async move {
-                                        let mut buf_reader = BufReader::new(stdout);
-                                        let mut line = String::new();
-                                        loop {
-                                            if let Err(err) = buf_reader
-                                                .read_line(&mut line)
-                                                .in_current_span()
-                                                .await
-                                            {
-                                                error!("{err}");
-                                                return;
-                                            }
-                                            if line.is_empty() {
-                                                return;
-                                            }
-                                            info!("{}", line.trim_end_matches('\n'));
-                                            line.clear();
-                                        }
-                                    }
-                                    .in_current_span(),
-                                );
 
                                 let stderr_handle = tokio::spawn(
                                     async move {
@@ -769,12 +779,28 @@ impl Commands {
 
                                 let long_name = job.long_name(job_index);
 
-                                stdout_handle.in_current_span().await.with_context(|| {
-                                    format!("Failed to read stdout for {long_name}")
-                                })?;
+                                // Stdout is the tar stream that we want to pipe to docker load
+                                let mut stdout = buildctl_child.stdout.take().unwrap();
+
+                                let mut docker_load = Command::new("docker")
+                                    .arg("load")
+                                    .stdin(Stdio::piped())
+                                    .spawn()?;
+
+                                let mut docker_load_stdin = docker_load.stdin.take().unwrap();
+                                tokio::io::copy(&mut stdout, &mut docker_load_stdin)
+                                    .in_current_span()
+                                    .await?;
+                                drop(docker_load_stdin);
+
                                 stderr_handle.in_current_span().await.with_context(|| {
                                     format!("Failed to read stderr for {long_name}")
                                 })?;
+
+                                let docker_load_status =
+                                    docker_load.wait().in_current_span().await.with_context(
+                                        || format!("Failed to wait for docker load to finish"),
+                                    )?;
 
                                 let status =
                                     buildctl_child.wait().in_current_span().await.with_context(
