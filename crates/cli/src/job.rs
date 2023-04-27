@@ -1,9 +1,19 @@
-use std::{collections::HashMap, path::Path, sync::Arc};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    process::{ExitStatus, Stdio},
+    sync::Arc,
+};
 
-use buildkit_rs::reference::Reference;
+use anyhow::Context;
+use buildkit_rs::{reference::Reference, util::oci::OciBackend};
 use camino::Utf8PathBuf;
 use serde::{Deserialize, Serialize};
-use tracing::error;
+use tokio::{
+    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
+    process::Command,
+};
+use tracing::{error, info, Instrument};
 
 use crate::{bin_deps::DENO_VERSION, git::Github};
 
@@ -366,6 +376,147 @@ impl JobResolved {
         let bytes = Definition::new(prev_step.output(0)).into_bytes();
 
         bytes
+    }
+
+    pub async fn solve(
+        self,
+        job_index: usize,
+        github: Option<Github>,
+        pipeline_name: String,
+        project_directory: String,
+        all_secrets: Vec<(String, String)>,
+        cicada_image: Option<String>,
+        buildctl_exe: PathBuf,
+        no_cache: bool,
+        oci_backend: OciBackend,
+    ) -> anyhow::Result<(String, ExitStatus, Self)> {
+        let name: String = self.job.name.clone().unwrap().replace('\"', "\"\"");
+
+        let config = oci_spec::image::ConfigBuilder::default()
+            // .user("root".to_string())
+            // .working_dir(job.working_directory.clone())
+            // .env(["ABC=123".to_owned()])
+            // .cmd(["/bin/bash".to_oswned()])
+            .entrypoint(["/app/hello-world".to_owned()])
+            .build()
+            .unwrap();
+
+        let image_config = oci_spec::image::ImageConfigurationBuilder::default()
+            .config(config)
+            .build()
+            .unwrap();
+
+        let image_config_json = serde_json::to_string(&image_config)
+            .context("Unable to serialize OCI spec to JSON")?
+            .replace("\"", "\"\"");
+
+        let mut buildctl = Command::new(&buildctl_exe);
+        buildctl
+            .arg("build")
+            .arg("--local")
+            .arg(format!("local={project_directory}"))
+            .arg("--progress")
+            .arg("plain")
+            .arg("--output")
+            .arg(format!(
+                "type=docker,\"name={name}\",\"containerimage.config={image_config_json}\""
+            ))
+            .env(
+                "BUILDKIT_HOST",
+                format!("{}-container://cicada-buildkitd", oci_backend.as_str()),
+            );
+
+        if no_cache {
+            buildctl.arg("--no-cache");
+        }
+
+        for (key, _) in &all_secrets {
+            buildctl.arg("--secret").arg(format!("id={key}"));
+        }
+
+        let mut buildctl_child = buildctl
+            .envs(all_secrets)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()?;
+
+        let llb_vec = self.to_llb(
+            pipeline_name,
+            &project_directory,
+            &github,
+            job_index,
+            cicada_image,
+        );
+
+        let mut stdin = buildctl_child.stdin.take().unwrap();
+        stdin.write_all(&llb_vec).in_current_span().await?;
+        stdin.shutdown().in_current_span().await?;
+        drop(stdin);
+
+        // Print the output as it comes in
+        let stderr = buildctl_child.stderr.take().unwrap();
+
+        let stderr_handle = tokio::spawn(
+            async move {
+                let mut buf_reader = BufReader::new(stderr);
+                let mut line = String::new();
+                loop {
+                    if let Err(err) = buf_reader.read_line(&mut line).in_current_span().await {
+                        error!("{err}");
+                        return;
+                    }
+                    if line.is_empty() {
+                        return;
+                    }
+
+                    info!("{}", line.trim_end_matches('\n'));
+                    line.clear();
+                }
+            }
+            .in_current_span(),
+        );
+
+        let long_name = self.long_name(job_index);
+
+        // Stdout is the tar stream that we want to pipe to docker load
+        let mut stdout = buildctl_child.stdout.take().unwrap();
+
+        let mut docker_load = Command::new("docker")
+            .arg("load")
+            .stdin(Stdio::piped())
+            .spawn()?;
+
+        let mut docker_load_stdin = docker_load.stdin.take().unwrap();
+        tokio::io::copy(&mut stdout, &mut docker_load_stdin)
+            .in_current_span()
+            .await?;
+        drop(docker_load_stdin);
+
+        stderr_handle
+            .in_current_span()
+            .await
+            .with_context(|| format!("Failed to read stderr for {long_name}"))?;
+
+        let docker_load_status = docker_load
+            .wait()
+            .in_current_span()
+            .await
+            .with_context(|| format!("Failed to wait for docker load to finish"))?;
+
+        if !docker_load_status.success() {
+            return Err(anyhow::anyhow!(
+                "Failed to load image for {long_name} into docker"
+            ));
+        }
+
+        let status = buildctl_child
+            .wait()
+            .in_current_span()
+            .await
+            .with_context(|| format!("Failed to wait for {long_name} to finish"))?;
+
+        anyhow::Ok((long_name, status, self))
     }
 
     pub fn display_name(&self, index: usize) -> String {

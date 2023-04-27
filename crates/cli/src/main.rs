@@ -33,16 +33,13 @@ use url::Url;
 use ahash::{HashMap, HashMapExt};
 use clap::Parser;
 use owo_colors::{OwoColorize, Stream};
-use tokio::{
-    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
-    process::Command,
-};
+use tokio::{io::AsyncWriteExt, process::Command};
 
 use crate::{
     bin_deps::{buildctl_exe, deno_exe, BUILDKIT_VERSION},
     dag::{invert_graph, topological_sort, Node},
     git::github_repo,
-    job::{InspectInfo, JobResolved, OnFail, Pipeline, CicadaType},
+    job::{CicadaType, InspectInfo, JobResolved, OnFail, Pipeline},
 };
 
 // Transform from https://deno.land/x/cicada/mod.ts to https://deno.land/x/cicada@vX.Y.X/mod.ts
@@ -61,10 +58,10 @@ fn replace_with_version(s: &str) -> String {
         .into_owned()
 }
 
-static LOCAL_CLI_SCRIPT: Lazy<String> =
-    Lazy::new(|| replace_with_version(include_str!("../scripts/local-cli.ts")));
-static RUNNER_CLI_SCRIPT: Lazy<String> =
-    Lazy::new(|| replace_with_version(include_str!("../scripts/runner-cli.ts")));
+static SERIALIZE_SCRIPT: Lazy<String> =
+    Lazy::new(|| replace_with_version(include_str!("../scripts/serialize.ts")));
+static RUN_STEP_SCRIPT: Lazy<String> =
+    Lazy::new(|| replace_with_version(include_str!("../scripts/run-step.ts")));
 
 static TEMPLATES: Lazy<Vec<String>> = Lazy::new(|| {
     vec![
@@ -107,7 +104,7 @@ async fn run_deno_builder<A, S>(
     deno_exe: &Path,
     script: &str,
     args: A,
-    proj_path: &Path,
+    proj_path: &str,
     out_path: &Path,
 ) -> Result<()>
 where
@@ -116,7 +113,7 @@ where
 {
     let mut child = Command::new(deno_exe)
         .arg("run")
-        .arg(format!("--allow-read={}", proj_path.display()))
+        .arg(format!("--allow-read={proj_path}"))
         .arg(format!("--allow-write={}", out_path.display()))
         .arg("--allow-net")
         .arg("--allow-env=CICADA_JOB")
@@ -389,13 +386,25 @@ impl Commands {
                 };
 
                 let pipeline_path = resolve_pipeline(pipeline)?;
-                let pipeline_file_name = pipeline_path.file_name().unwrap();
+                let pipeline_name = pipeline_path
+                    .file_name()
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .to_owned();
 
-                let project_directory = pipeline_path.parent().unwrap().parent().unwrap();
+                let project_directory = pipeline_path
+                    .parent()
+                    .unwrap()
+                    .parent()
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .to_owned();
                 let pipeline_url = Url::from_file_path(&pipeline_path)
                     .map_err(|_| anyhow::anyhow!("Unable to convert pipeline path to URL"))?;
 
-                let gh_repo = github_repo().await.ok().flatten();
+                let github = github_repo().await.ok().flatten();
 
                 info!("Building pipeline: {}", pipeline_path.display().bold());
 
@@ -404,12 +413,12 @@ impl Commands {
 
                     run_deno_builder(
                         &deno_exe,
-                        &LOCAL_CLI_SCRIPT,
+                        &SERIALIZE_SCRIPT,
                         vec![
                             pipeline_url.to_string().as_ref(),
                             tmp_file.path().to_str().unwrap(),
                         ],
-                        project_directory,
+                        &project_directory,
                         tmp_file.path(),
                     )
                     .await?;
@@ -418,21 +427,20 @@ impl Commands {
                     std::fs::read_to_string(tmp_file.path())?
                 };
 
-                let pipeline = serde_json::from_str::<CicadaType>(&out)?;
-
-                dbg!(&pipeline);
-
-                let pipeline = match pipeline {
+                let pipeline = match serde_json::from_str::<CicadaType>(&out)? {
                     CicadaType::Pipeline(pipeline) => pipeline,
-                    CicadaType::Image(image) => Pipeline { jobs: vec![image], ..Default::default() },
+                    CicadaType::Image(image) => Pipeline {
+                        jobs: vec![image],
+                        ..Default::default()
+                    },
                 };
 
                 // Check if we should run this pipeline based on the git event
-                if let (Ok(git_event), Ok(base_ref)) = (
+                match (
                     std::env::var("CICADA_GIT_EVENT"),
                     std::env::var("CICADA_BASE_REF"),
                 ) {
-                    match pipeline.on {
+                    (Ok(git_event), Ok(base_ref)) => match pipeline.on {
                         Some(job::Trigger::Options { push, pull_request }) => match &*git_event {
                             "pull_request" if !pull_request.contains(&base_ref) => {
                                 info!(
@@ -458,7 +466,11 @@ impl Commands {
                             anyhow::bail!("TypeScript trigger functions are unimplemented")
                         }
                         None => {}
+                    },
+                    (Ok(_), Err(_)) | (Err(_), Ok(_)) => {
+                        anyhow::bail!("CICADA_GIT_EVENT and CICADA_BASE_REF must be set together")
                     }
+                    (Err(_), Err(_)) => {}
                 }
 
                 info!(trigger = true);
@@ -466,7 +478,7 @@ impl Commands {
                 // Only send telemetry when we know we should execute
                 #[cfg(feature = "telemetry")]
                 let telem_join = segment_enabled().then(|| {
-                    let pipeline_name = pipeline_file_name.to_string_lossy().to_string();
+                    let pipeline_name = pipeline_name.clone();
                     let pipeline_length = std::fs::read_to_string(&pipeline_path)
                         .map(|f| f.lines().count())
                         .ok();
@@ -674,141 +686,18 @@ impl Commands {
                         let span = info_span!("job", job_name = job.display_name(job_index));
                         let _enter = span.enter();
 
-                        let gh_repo = gh_repo.clone();
-                        let pipeline_file_name = pipeline_file_name.to_os_string();
-                        let project_directory = project_directory.to_path_buf();
-                        let all_secrets = all_secrets.clone();
-                        let cicada_image = cicada_image.clone();
-                        let buildctl_exe = buildctl_exe.clone();
-
                         tokio::spawn(
-                            async move {
-                                let name = job.job.name.clone().unwrap().replace('\"', "\"\"");
-
-                                let config = oci_spec::image::ConfigBuilder::default()
-                                    // .user("root".to_string())
-                                    // .working_dir(job.working_directory.clone())
-                                    // .env(["ABC=123".to_owned()])
-                                    // .cmd(["/bin/bash".to_oswned()])
-                                    .entrypoint(["/app/hello-world".to_owned()])
-                                    .build()
-                                    .unwrap();
-                        
-                                let image_config = oci_spec::image::ImageConfigurationBuilder::default()
-                                    .config(config)
-                                    .build()
-                                    .unwrap();
-                            
-                                let image_config_json = serde_json::to_string(&image_config)
-                                    .context("Unable to serialize OCI spec to JSON")?
-                                    .replace("\"", "\"\"");
-
-                                let mut buildctl = Command::new(buildctl_exe);
-                                buildctl
-                                    .arg("build")
-                                    .arg("--local")
-                                    .arg(format!("local={}", project_directory.display()))
-                                    .arg("--progress")
-                                    .arg("plain")
-                                    .arg("--output")
-                                    .arg(dbg!(format!(
-                                        "type=docker,\"name={name}\",\"containerimage.config={image_config_json}\""
-                                    )))
-                                    .env(
-                                        "BUILDKIT_HOST",
-                                        format!(
-                                            "{}-container://cicada-buildkitd",
-                                            oci_backend.as_str()
-                                        ),
-                                    );
-
-                                if no_cache {
-                                    buildctl.arg("--no-cache");
-                                }
-
-                                for (key, _) in &all_secrets {
-                                    buildctl.arg("--secret").arg(format!("id={key}"));
-                                }
-
-                                let mut buildctl_child = buildctl
-                                    .envs(all_secrets)
-                                    .stdin(Stdio::piped())
-                                    .stdout(Stdio::piped())
-                                    .stderr(Stdio::piped())
-                                    .spawn()?;
-
-                                let llb_vec = job.to_llb(
-                                    pipeline_file_name.to_str().unwrap(),
-                                    &project_directory,
-                                    &gh_repo,
-                                    job_index,
-                                    cicada_image,
-                                );
-
-                                let mut stdin = buildctl_child.stdin.take().unwrap();
-                                stdin.write_all(&llb_vec).in_current_span().await?;
-                                stdin.shutdown().in_current_span().await?;
-                                drop(stdin);
-
-                                // Print the output as it comes in
-                                let stderr = buildctl_child.stderr.take().unwrap();
-
-                                let stderr_handle = tokio::spawn(
-                                    async move {
-                                        let mut buf_reader = BufReader::new(stderr);
-                                        let mut line = String::new();
-                                        loop {
-                                            if let Err(err) = buf_reader
-                                                .read_line(&mut line)
-                                                .in_current_span()
-                                                .await
-                                            {
-                                                error!("{err}");
-                                                return;
-                                            }
-                                            if line.is_empty() {
-                                                return;
-                                            }
-
-                                            info!("{}", line.trim_end_matches('\n'));
-                                            line.clear();
-                                        }
-                                    }
-                                    .in_current_span(),
-                                );
-
-                                let long_name = job.long_name(job_index);
-
-                                // Stdout is the tar stream that we want to pipe to docker load
-                                let mut stdout = buildctl_child.stdout.take().unwrap();
-
-                                let mut docker_load = Command::new("docker")
-                                    .arg("load")
-                                    .stdin(Stdio::piped())
-                                    .spawn()?;
-
-                                let mut docker_load_stdin = docker_load.stdin.take().unwrap();
-                                tokio::io::copy(&mut stdout, &mut docker_load_stdin)
-                                    .in_current_span()
-                                    .await?;
-                                drop(docker_load_stdin);
-
-                                stderr_handle.in_current_span().await.with_context(|| {
-                                    format!("Failed to read stderr for {long_name}")
-                                })?;
-
-                                let docker_load_status =
-                                    docker_load.wait().in_current_span().await.with_context(
-                                        || format!("Failed to wait for docker load to finish"),
-                                    )?;
-
-                                let status =
-                                    buildctl_child.wait().in_current_span().await.with_context(
-                                        || format!("Failed to wait for {long_name} to finish"),
-                                    )?;
-
-                                anyhow::Ok((long_name, status, job))
-                            }
+                            job.solve(
+                                job_index,
+                                github.clone(),
+                                pipeline_name.clone(),
+                                project_directory.clone(),
+                                all_secrets.clone(),
+                                cicada_image.clone(),
+                                buildctl_exe.clone(),
+                                no_cache,
+                                oci_backend,
+                            )
                             .in_current_span(),
                         )
                     }))
@@ -853,7 +742,7 @@ impl Commands {
             }
             Commands::Step { workflow, step } => {
                 run_deno(
-                    &RUNNER_CLI_SCRIPT,
+                    &RUN_STEP_SCRIPT,
                     vec![workflow.to_string(), step.to_string()],
                 )
                 .await?;
