@@ -259,6 +259,10 @@ enum Commands {
         /// Disable caching
         #[arg(long)]
         no_cache: bool,
+
+        /// Enable gh action caching
+        #[arg(long, hide = true)]
+        gh_action_cache: bool,
     },
     /// Run a step in a cicada workflow
     #[command(hide = true)]
@@ -302,6 +306,7 @@ impl Commands {
                 cicada_dockerfile,
                 oci_args,
                 no_cache,
+                gh_action_cache
             } => {
                 let oci_backend = oci_args.oci_backend();
 
@@ -708,6 +713,10 @@ impl Commands {
                                         ),
                                     );
 
+                                if gh_action_cache {
+                                    buildctl.arg("--export-cache").arg("type=gha").arg("--import-cache").arg("type=gha");
+                                }
+
                                 if no_cache {
                                     buildctl.arg("--no-cache");
                                 }
@@ -1102,7 +1111,7 @@ async fn main() -> ExitCode {
         return ExitCode::FAILURE;
     }
 
-    if std::env::var_os("CICADA_FORCE_COLOR").is_some() {
+    if std::env::var_os("CICADA_FORCE_COLOR").is_some() || std::env::var_os("CI").is_some() {
         owo_colors::set_override(true);
     }
 
