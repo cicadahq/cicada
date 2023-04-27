@@ -1,0 +1,14 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: cicadahq/setup-cicada@v1
+      - run: cicada run test
