@@ -306,7 +306,7 @@ impl Commands {
                 cicada_dockerfile,
                 oci_args,
                 no_cache,
-                gh_action_cache
+                gh_action_cache,
             } => {
                 let oci_backend = oci_args.oci_backend();
 
@@ -714,7 +714,11 @@ impl Commands {
                                     );
 
                                 if gh_action_cache {
-                                    buildctl.arg("--export-cache").arg("type=gha").arg("--import-cache").arg("type=gha");
+                                    buildctl
+                                        .arg("--export-cache")
+                                        .arg("type=gha")
+                                        .arg("--import-cache")
+                                        .arg("type=gha");
                                 }
 
                                 if no_cache {
