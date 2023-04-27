@@ -54,7 +54,7 @@ async fn path_buildctl_version() -> Option<Version> {
 
 #[cfg(feature = "managed-bins")]
 fn managed_deno_dir() -> anyhow::Result<PathBuf> {
-    Ok(crate::util::data_path()?.join(format!("deno")))
+    Ok(crate::util::data_path()?.join("deno"))
 }
 
 #[cfg(feature = "managed-bins")]
