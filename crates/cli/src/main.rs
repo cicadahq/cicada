@@ -500,7 +500,7 @@ impl Commands {
                                     }
                                 }
                             }
-                            _ if paths.len() > 0 => {
+                            _ if !paths.is_empty() => {
                                 let globset = {
                                     let mut builder = GlobSetBuilder::new();
                                     for path in paths.iter() {
