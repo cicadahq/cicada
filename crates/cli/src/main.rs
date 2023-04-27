@@ -467,40 +467,42 @@ impl Commands {
                     std::env::var("CICADA_GIT_EVENT"),
                     std::env::var("CICADA_BASE_REF"),
                 ) {
-					(Ok(git_event), Ok(base_ref)) =>
-                    match pipeline.on {
+                    (Ok(git_event), Ok(base_ref)) => match pipeline.on {
                         Some(job::Trigger::Options {
                             push,
                             pull_request,
                             paths,
-                        }) => match &*git_event {
-                            "pull_request" => {
-                                if let Some(TriggerOn::Branches { branches }) = &pull_request {
-                                    if !branches.contains(&base_ref) {
-                                        info!(
-                                        "Skipping pipeline because branch {} is not in {}: {:?}",
-                                        base_ref.bold(),
-                                        "pull_request".bold(),
-                                        pull_request
-                                    );
-                                        std::process::exit(2);
+                        }) => {
+                            match &*git_event {
+                                "pull_request" => {
+                                    if let Some(TriggerOn::Branches { branches }) = &pull_request {
+                                        if !branches.contains(&base_ref) {
+                                            info!(
+                                            "Skipping pipeline because branch {} is not in {}: {:?}",
+                                            base_ref.bold(),
+                                            "pull_request".bold(),
+                                            pull_request
+                                        );
+                                            std::process::exit(2);
+                                        }
                                     }
                                 }
-                            }
-                            "push" => {
-                                if let Some(TriggerOn::Branches { branches }) = &push {
-                                    if !branches.contains(&base_ref) {
-                                        info!(
+                                "push" => {
+                                    if let Some(TriggerOn::Branches { branches }) = &push {
+                                        if !branches.contains(&base_ref) {
+                                            info!(
                                         "Skipping pipeline because branch {} is not in {}: {:?}",
                                         base_ref.bold(),
                                         "push".bold(),
                                         push
                                     );
-                                        std::process::exit(2);
+                                            std::process::exit(2);
+                                        }
                                     }
                                 }
+                                _ => (),
                             }
-                            _ if !paths.is_empty() => {
+                            if !paths.is_empty() {
                                 let globset = {
                                     let mut builder = GlobSetBuilder::new();
                                     for path in paths.iter() {
@@ -522,8 +524,7 @@ impl Commands {
                                     std::process::exit(2);
                                 }
                             }
-                            _ => (),
-                        },
+                        }
                         Some(job::Trigger::DenoFunction) => {
                             anyhow::bail!("TypeScript trigger functions are unimplemented")
                         }
