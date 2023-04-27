@@ -24,8 +24,8 @@ fig-completions = ["dep:clap_complete_fig"]
 ahash = "0.8.3"
 anyhow = "1.0.70"
 base64 = "0.21.0"
-buildkit-rs = { path = "../../../buildkit-rs", version = "0.1.0" }
-# buildkit-rs = { git = "https://github.com/cicadahq/buildkit-rs.git", version = "0.1.0" }
+# buildkit-rs = { path = "../../../buildkit-rs", version = "0.1.0" }
+buildkit-rs = { git = "https://github.com/cicadahq/buildkit-rs.git", version = "0.1.0" }
 camino = { version = "1.1.4", features = ["serde1"] }
 clap = { version = "4.1.13", features = [
     "derive",
