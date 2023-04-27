@@ -380,6 +380,7 @@ dependencies = [
  "camino",
  "clap",
  "clap_complete",
+ "clap_complete_fig",
  "dialoguer",
  "dirs",
  "dotenvy",
@@ -446,6 +447,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1a19591b2ab0e3c04b588a0e04ddde7b9eaa423646d1b4a8092879216bf47473"
 dependencies = [
  "clap",
+]
+
+[[package]]
+name = "clap_complete_fig"
+version = "4.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f3af28956330989baa428ed4d3471b853715d445c62de21b67292e22cf8a41fa"
+dependencies = [
+ "clap",
+ "clap_complete",
 ]
 
 [[package]]
