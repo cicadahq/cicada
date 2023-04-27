@@ -154,20 +154,7 @@ jobs:
             gh release upload $version $OUT_FILE
           done
 
-  npm-release:
-    name: Release to NPM
-    runs-on: ubuntu-latest
-    needs: release
-    steps:
-      - uses: actions/checkout@master
-      - name: Publish to NPM
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          cd packages/cicada
-          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
-          npm publish
-
+  # All the other releases should depend on this one since the binary will require the docker image on docker hub
   docker-release:
     name: Release to Docker Hub
     runs-on: ubuntu-latest
@@ -200,11 +187,25 @@ jobs:
           context: ./docker
           file: ./docker/bin.Dockerfile
           push: true
-          tags: cicadahq/cicada-bin:${{ steps.version.outputs.no_prefix_version }},cicadahq/cicada-bin:latest
+          tags: cicadahq/cicada-bin:${{ steps.version.outputs.no_prefix_version }},cicadahq/cicada-bin:latest    
+
+  npm-release:
+    name: Release to NPM
+    runs-on: ubuntu-latest
+    needs: docker-release
+    steps:
+      - uses: actions/checkout@master
+      - name: Publish to NPM
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          cd packages/cicada
+          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
+          npm publish
 
   aur-publish:
     name: Build & publish to AUR
-    needs: release
+    needs: docker-release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3

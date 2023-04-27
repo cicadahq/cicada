@@ -110,12 +110,22 @@ where
     A: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
 {
-    let mut child = Command::new(deno_exe)
+    let mut deno_command = Command::new(deno_exe);
+    deno_command
         .arg("run")
         .arg(format!("--allow-read={}", proj_path.display()))
         .arg(format!("--allow-write={}", out_path.display()))
         .arg("--allow-net")
-        .arg("--allow-env=CICADA_JOB")
+        .arg("--allow-env=CICADA_JOB");
+
+    // Check for a `deno.json` file in the project directory, otherwise set no config file
+    // TODO: we should add a allow-read for the config file if its outside the project directory
+    let deno_config = proj_path.join("deno.json");
+    if !deno_config.exists() {
+        deno_command.arg("--no-config");
+    }
+
+    let mut child = deno_command
         .arg("-")
         .args(args)
         .current_dir(proj_path)
@@ -144,77 +154,26 @@ where
     Ok(())
 }
 
-/// Check that docker is installed and buildx is installed, other checks before running cicada can be added here
-async fn runtime_checks(oci: &OciBackend) {
+/// Check that oci backend is working before doing anything else for clean error messages
+async fn runtime_checks(oci: &OciBackend) -> anyhow::Result<()> {
     if std::env::var_os("CICADA_SKIP_CHECKS").is_some() {
-        return;
+        return Ok(());
     }
 
-    // We dont do any checks for podman yet
-    if oci == &OciBackend::Podman {
-        return;
-    }
-
-    let (docker_buildx_version, docker_info) = tokio::join!(
-        Command::new("docker").args(["buildx", "version"]).output(),
-        Command::new("docker")
-            .args(["info", "--format", "{{json .}}"])
-            .output(),
-    );
-
-    // Validate docker client version is at least 23
-    match docker_buildx_version {
-        Ok(output) => {
-            let buildx_error = || {
-                if std::env::consts::OS == "macos" || std::env::consts::OS == "windows" {
-                    info!("Cicada requires Docker Desktop v4.12 or above to run. Please upgrade using the Docker Desktop UI");
-                } else {
-                    info!("Cicada requires Docker Buildx >=0.9 to run. Please install it by updating Docker to v4.12 or by manually downloading from from https://github.com/docker/buildx#linux-packages");
-                }
-                std::process::exit(1);
-            };
-
-            if !output.status.success() {
-                buildx_error();
-            }
-
-            let version_str = String::from_utf8_lossy(&output.stdout);
-
-            let version_str_parts = version_str.split_whitespace().collect::<Vec<&str>>();
-
-            if version_str_parts[0] != "github.com/docker/buildx" {
-                buildx_error();
-            }
-
-            let version = version_str_parts[1]
-                .strip_prefix('v')
-                .unwrap_or(version_str_parts[1]);
-            let version_parts = version.split('.').collect::<Vec<&str>>();
-
-            let major = version_parts[0].parse::<u32>().unwrap_or_default();
-            let minor = version_parts[1].parse::<u32>().unwrap_or_default();
-
-            if major == 0 && minor < 9 {
-                buildx_error();
-            }
-        }
-        Err(_) => {
-            error!("Cicada requires Docker to run. Please install it using your package manager or from https://docs.docker.com/engine/install");
-            std::process::exit(1);
-        }
-    }
-
-    // Run docker info to check that docker is running
-    match docker_info {
-        Ok(output) if !output.status.success() => {
-            error!("Docker is not running! Please start it to use Cicada");
-            std::process::exit(1);
-        }
-        Ok(_) => {}
-        Err(_) => {
-            error!("Cicada requires Docker to run. Please install it using your package manager or from https://docs.docker.com/engine/install");
-            std::process::exit(1);
-        }
+    match Command::new(oci.as_str())
+        .args(["info", "--format", "{{json .}}"])
+        .output()
+        .await
+    {
+        Ok(output) if !output.status.success() => Err(anyhow::anyhow!(match oci {
+            OciBackend::Docker => "Docker is not running! Please start it to use Cicada",
+            OciBackend::Podman => "Failed to run podman! Please make sure it is installed and working to use Cicada",
+        })),
+        Ok(_) => Ok(()),
+        Err(err) => Err(err).context(match oci {
+            OciBackend::Docker => "Cicada requires Docker to run. Please install it using your package manager or from https://docs.docker.com/engine/install",
+            OciBackend::Podman => "Cicada requires Podman to run. Please install it using your package manager or from https://podman.io/getting-started/installation",
+        }),
     }
 }
 
@@ -260,7 +219,7 @@ enum Commands {
     /// Run a cicada pipeline
     Run {
         /// Path to the pipeline file
-        pipeline: PathBuf,
+        pipeline: Option<PathBuf>,
 
         /// Name of the secret to use, these come from environment variables
         ///
@@ -344,10 +303,46 @@ impl Commands {
                 let oci_backend = oci_args.oci_backend();
 
                 #[cfg(feature = "self-update")]
-                tokio::join!(check_for_update(), runtime_checks(&oci_backend));
+                tokio::join!(check_for_update(), runtime_checks(&oci_backend)).1?;
 
                 #[cfg(not(feature = "self-update"))]
-                runtime_checks(&oci_backend).await;
+                runtime_checks(&oci_backend).await?;
+
+                let pipeline = match pipeline {
+                    Some(pipeline) => pipeline,
+                    None => {
+                        let cicada_dir = resolve_cicada_dir()?;
+
+                        let mut pipelines = vec![];
+                        for entry in std::fs::read_dir(cicada_dir)? {
+                            let entry = entry?;
+                            if entry.path().extension() == Some(OsStr::new("ts")) {
+                                if let Some(pipeline) = entry.path().file_stem() {
+                                    pipelines.push(PathBuf::from(pipeline));
+                                }
+                            }
+                        }
+
+                        if pipelines.is_empty() {
+                            anyhow::bail!("No pipelines found");
+                        }
+
+                        let i = dialoguer::Select::with_theme(&ColorfulTheme::default())
+                            .with_prompt("Select a pipeline to run")
+                            .items(
+                                &pipelines
+                                    .iter()
+                                    .map(|p: &PathBuf| p.display())
+                                    .collect::<Vec<_>>(),
+                            )
+                            .default(0)
+                            .interact_opt()
+                            .map_err(|_| anyhow::anyhow!("Could not select pipeline"))?
+                            .ok_or_else(|| anyhow::anyhow!("No pipeline selected"))?;
+
+                        pipelines[i].clone()
+                    }
+                };
 
                 info!(
                     "\n{}{}\n{}{}\n",
@@ -792,10 +787,10 @@ impl Commands {
 
                                 let long_name = job.long_name(job_index);
 
-                                stdout_handle.await.with_context(|| {
+                                stdout_handle.in_current_span().await.with_context(|| {
                                     format!("Failed to read stdout for {long_name}")
                                 })?;
-                                stderr_handle.await.with_context(|| {
+                                stderr_handle.in_current_span().await.with_context(|| {
                                     format!("Failed to read stderr for {long_name}")
                                 })?;
 
@@ -1041,7 +1036,7 @@ impl Commands {
             }
             Commands::Doctor { oci_args } => {
                 info!("Checking for common problems...");
-                runtime_checks(&oci_args.oci_backend()).await;
+                runtime_checks(&oci_args.oci_backend()).await?;
                 info!("\nAll checks passed!");
             }
             Commands::Debug(debug_command) => debug_command.run().await?,

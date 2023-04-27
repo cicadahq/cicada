@@ -3,6 +3,9 @@ use std::path::PathBuf;
 use semver::{Version, VersionReq};
 use tokio::process::Command;
 
+#[cfg(feature = "managed-bins")]
+use std::env::consts::EXE_SUFFIX;
+
 pub const DENO_VERSION: &str = "1.32.5";
 pub const DENO_VERSION_REQ: &str = ">=1.32";
 
@@ -40,6 +43,10 @@ async fn path_buildctl_version() -> Option<Version> {
     let buildctl_version = String::from_utf8(buildctl_version).ok()?;
     let buildctl_version = buildctl_version.trim();
     let buildctl_trimmed = buildctl_version.split_whitespace().nth(2)?;
+    let buildctl_trimmed = buildctl_trimmed
+        .strip_prefix('v')
+        .unwrap_or(buildctl_trimmed);
+
     let buildctl_semver = Version::parse(buildctl_trimmed).ok()?;
 
     Some(buildctl_semver)
@@ -52,7 +59,7 @@ fn managed_deno_dir() -> anyhow::Result<PathBuf> {
 
 #[cfg(feature = "managed-bins")]
 fn managed_deno_exe() -> anyhow::Result<PathBuf> {
-    Ok(managed_deno_dir()?.join(format!("deno-{DENO_VERSION}")))
+    Ok(managed_deno_dir()?.join(format!("deno-{DENO_VERSION}{EXE_SUFFIX}")))
 }
 
 #[cfg(feature = "managed-bins")]
@@ -62,7 +69,7 @@ fn managed_buildctl_dir() -> anyhow::Result<PathBuf> {
 
 #[cfg(feature = "managed-bins")]
 fn managed_buildctl_exe() -> anyhow::Result<PathBuf> {
-    Ok(managed_buildctl_dir()?.join(format!("buildctl-{BUILDCTL_VERSION}")))
+    Ok(managed_buildctl_dir()?.join(format!("buildctl-{BUILDCTL_VERSION}{EXE_SUFFIX}")))
 }
 
 #[cfg(feature = "managed-bins")]
@@ -137,7 +144,7 @@ pub async fn download_deno_exe() -> anyhow::Result<PathBuf> {
 
     let mut deno_archive = zip::ZipArchive::new(file)?;
 
-    let mut deno_exe_zip = deno_archive.by_name("deno")?;
+    let mut deno_exe_zip = deno_archive.by_name(&format!("deno{EXE_SUFFIX}"))?;
 
     let mut deno_exe_file = std::fs::File::create(&managed_deno_exe)?;
 
@@ -255,10 +262,10 @@ pub async fn download_buildctl_exe() -> anyhow::Result<PathBuf> {
         );
     }
 
-    let buildctl_path = tempdir.path().join("bin").join(match std::env::consts::OS {
-        "windows" => "buildctl.exe",
-        _ => "buildctl",
-    });
+    let buildctl_path = tempdir
+        .path()
+        .join("bin")
+        .join(format!("buildctl{EXE_SUFFIX}"));
 
     tokio::fs::copy(buildctl_path, &managed_buildctl_exe).await?;
 
