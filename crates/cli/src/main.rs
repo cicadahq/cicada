@@ -271,6 +271,9 @@ enum Commands {
     Update,
     /// List all available completions
     Completions { shell: clap_complete::Shell },
+    /// Create fig completions
+    #[cfg(feature = "fig-completions")]
+    FigCompletion,
     /// Open a pipeline in your editor
     Open {
         /// Pipeline to open
@@ -1019,6 +1022,16 @@ impl Commands {
                     &mut std::io::stdout(),
                 );
             }
+            #[cfg(feature = "fig-completions")]
+            Commands::FigCompletion => {
+                use clap::CommandFactory;
+                clap_complete::generate(
+                    clap_complete_fig::Fig,
+                    &mut Commands::command(),
+                    "cicada",
+                    &mut std::io::stdout(),
+                )
+            }
             Commands::Open { pipeline } => {
                 let resolved_pipeline = resolve_pipeline(pipeline)?;
                 match std::env::var("EDITOR") {
@@ -1046,6 +1059,8 @@ impl Commands {
             Commands::New { .. } => "new",
             Commands::Update => "update",
             Commands::Completions { .. } => "completions",
+            #[cfg(feature = "fig-completions")]
+            Commands::FigCompletion => "fig-completion",
             Commands::Open { .. } => "open",
             Commands::Doctor { .. } => "doctor",
             Commands::Debug { .. } => "debug",
@@ -1061,6 +1076,8 @@ impl Commands {
             Commands::New { .. } => true,
             Commands::Update => true,
             Commands::Completions { .. } => false,
+            #[cfg(feature = "fig-completions")]
+            Commands::FigCompletion => false,
             Commands::Open { .. } => false,
             Commands::Doctor { .. } => true,
             Commands::Debug { .. } => false,
