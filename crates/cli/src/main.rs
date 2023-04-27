@@ -32,13 +32,14 @@ use url::Url;
 
 use ahash::{HashMap, HashMapExt};
 use clap::Parser;
+use globset::{Glob, GlobSetBuilder};
 use owo_colors::{OwoColorize, Stream};
 use tokio::{io::AsyncWriteExt, process::Command};
 
 use crate::{
     bin_deps::{buildctl_exe, deno_exe, BUILDKIT_VERSION},
     dag::{invert_graph, topological_sort, Node},
-    git::github_repo,
+    git::{git_changed_files, github_repo},
     job::{CicadaType, InspectInfo, JobResolved, OnFail, Pipeline, TriggerOn},
 };
 
@@ -466,8 +467,13 @@ impl Commands {
                     std::env::var("CICADA_GIT_EVENT"),
                     std::env::var("CICADA_BASE_REF"),
                 ) {
-                    (Ok(git_event), Ok(base_ref)) => match pipeline.on {
-                        Some(job::Trigger::Options { push, pull_request }) => match &*git_event {
+					(Ok(git_event), Ok(base_ref)) =>
+                    match pipeline.on {
+                        Some(job::Trigger::Options {
+                            push,
+                            pull_request,
+                            paths,
+                        }) => match &*git_event {
                             "pull_request" => {
                                 if let Some(TriggerOn::Branches { branches }) = &pull_request {
                                     if !branches.contains(&base_ref) {
@@ -494,7 +500,29 @@ impl Commands {
                                     }
                                 }
                             }
-                            _ => {}
+                            _ if paths.len() > 0 => {
+                                let globset = {
+                                    let mut builder = GlobSetBuilder::new();
+                                    for path in paths.iter() {
+                                        builder.add(Glob::new(path)?);
+                                    }
+                                    builder.build()?
+                                };
+
+                                let matching_files = git_changed_files()
+                                    .await?
+                                    .iter()
+                                    .any(|f| globset.is_match(f));
+
+                                if !matching_files {
+                                    info!(
+                                        "Skipping pipeline because no changed file is matching paths: {:?}",
+                                        paths
+                                    );
+                                    std::process::exit(2);
+                                }
+                            }
+                            _ => (),
                         },
                         Some(job::Trigger::DenoFunction) => {
                             anyhow::bail!("TypeScript trigger functions are unimplemented")

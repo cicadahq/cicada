@@ -9,6 +9,27 @@ pub struct Origin {
     pub url: String,
 }
 
+pub async fn git_changed_files() -> Result<Vec<String>> {
+    let output = Command::new("git")
+        .args(["status", "--ignored=no", "--short"])
+        .output()
+        .await?;
+
+    if !output.status.success() {
+        return Err(anyhow::anyhow!(
+            "Failed to get git changed files: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    };
+
+    let changed_files = String::from_utf8(output.stdout)?
+        .lines()
+        .map(|row| row.trim().split(" ").last().unwrap().to_string())
+        .collect();
+
+    Ok(changed_files)
+}
+
 pub async fn git_remotes() -> Result<Vec<Origin>> {
     let output = Command::new("git").args(["remote", "-v"]).output().await?;
 
