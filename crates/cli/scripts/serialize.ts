@@ -50,11 +50,18 @@ if (module.default instanceof Pipeline || module.default instanceof Image) {
   Deno.exit(1);
 }
 
+type SerializedTriggerOn = {
+  type: "branches";
+  branches: string[];
+} | {
+  type: "all";
+};
+
 type SerializedTrigger =
   | {
     type: "options";
-    push: string[];
-    pullRequest: string[];
+    push?: SerializedTriggerOn;
+    pullRequest?: SerializedTriggerOn;
   }
   | {
     type: "denoFunction";
@@ -63,7 +70,7 @@ type SerializedTrigger =
 type SerializedPipeline = {
   type: "pipeline";
   jobs: SerializedJob[];
-  on: SerializedTrigger;
+  on?: SerializedTrigger;
 };
 
 type SerializedRun =
@@ -174,11 +181,28 @@ const serializeStep = (step: Step): SerializedStep => {
   }
 };
 
-const serializeTrigger = (trigger?: Trigger): SerializedTrigger => {
+const serializeTriggerOn = (
+  triggerOn: string[] | "all",
+): SerializedTriggerOn => {
+  if (triggerOn === "all") {
+    return {
+      type: "all",
+    };
+  } else {
+    return {
+      type: "branches",
+      branches: triggerOn,
+    };
+  }
+};
+
+const serializeTrigger = (trigger: Trigger): SerializedTrigger => {
   return {
     type: "options",
-    push: trigger?.push ?? [],
-    pullRequest: trigger?.pullRequest ?? [],
+    push: trigger.push ? serializeTriggerOn(trigger.push) : undefined,
+    pullRequest: trigger.pullRequest
+      ? serializeTriggerOn(trigger.pullRequest)
+      : undefined,
   };
 };
 
@@ -206,8 +230,9 @@ const serializePipeline = (pipeline: Pipeline): SerializedPipeline => {
   return {
     type: "pipeline",
     jobs,
-    // name: pipeline.options?.name ?? undefined,
-    on: serializeTrigger(pipeline.options?.on),
+    on: pipeline.options?.on
+      ? serializeTrigger(pipeline.options?.on)
+      : undefined,
   };
 };
 

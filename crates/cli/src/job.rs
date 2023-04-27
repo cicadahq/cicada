@@ -68,12 +68,18 @@ impl CacheDirectory {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[serde(tag = "type")]
+pub enum TriggerOn {
+    Branches(Vec<String>),
+    All,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(tag = "type")]
 pub enum Trigger {
     Options {
-        #[serde(default)]
-        push: Vec<String>,
-        #[serde(default)]
-        pull_request: Vec<String>,
+        push: Option<TriggerOn>,
+        pull_request: Option<TriggerOn>,
     },
     DenoFunction,
 }
@@ -149,14 +155,15 @@ impl Step {
             (Some(name), StepRun::Command { command }) => {
                 exec.with_custom_name(format!("{name} ({step_index}): {command}"))
             }
-            (Some(name), StepRun::Args { args }) => {
-                exec.with_custom_name(format!("{name} ({step_index}): {}", args.join(" ")))
-            }
+            (Some(name), StepRun::Args { args }) => exec.with_custom_name(format!(
+                "{name} ({step_index}): {args}",
+                args = args.join(" ")
+            )),
             (Some(name), StepRun::DenoFunction) => {
                 exec.with_custom_name(format!("{name} ({step_index})"))
             }
             (None, StepRun::Command { command }) => exec.with_custom_name(command.clone()),
-            (None, StepRun::Args { args }) => exec.with_custom_name(format!("{}", args.join(" "))),
+            (None, StepRun::Args { args }) => exec.with_custom_name(args.join(" ")),
             (None, StepRun::DenoFunction) => exec.with_custom_name(format!("Step {step_index}")),
         };
 
@@ -306,7 +313,6 @@ impl JobResolved {
 
         let image = Image::reference(self.image_reference.clone())
             .with_platform(Platform::LINUX_AMD64)
-            .with_custom_name(self.job.name.clone().unwrap())
             .with_resolve_mode(ResolveMode::Local);
 
         let deno_image = Image::new(format!("docker.io/denoland/deno:bin-{DENO_VERSION}"))
@@ -388,6 +394,7 @@ impl JobResolved {
         cicada_image: Option<String>,
         buildctl_exe: PathBuf,
         no_cache: bool,
+        gh_action_cache: bool,
         oci_backend: OciBackend,
     ) -> anyhow::Result<(String, ExitStatus, Self)> {
         let name: String = self.job.name.clone().unwrap().replace('\"', "\"\"");
@@ -425,6 +432,14 @@ impl JobResolved {
                 "BUILDKIT_HOST",
                 format!("{}-container://cicada-buildkitd", oci_backend.as_str()),
             );
+
+        if gh_action_cache {
+            buildctl
+                .arg("--export-cache")
+                .arg("type=gha")
+                .arg("--import-cache")
+                .arg("type=gha");
+        }
 
         if no_cache {
             buildctl.arg("--no-cache");

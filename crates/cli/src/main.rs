@@ -39,7 +39,7 @@ use crate::{
     bin_deps::{buildctl_exe, deno_exe, BUILDKIT_VERSION},
     dag::{invert_graph, topological_sort, Node},
     git::github_repo,
-    job::{CicadaType, InspectInfo, JobResolved, OnFail, Pipeline},
+    job::{CicadaType, InspectInfo, JobResolved, OnFail, Pipeline, TriggerOn},
 };
 
 // Transform from https://deno.land/x/cicada/mod.ts to https://deno.land/x/cicada@vX.Y.X/mod.ts
@@ -111,12 +111,22 @@ where
     A: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
 {
-    let mut child = Command::new(deno_exe)
+    let mut deno_command = Command::new(deno_exe);
+    deno_command
         .arg("run")
         .arg(format!("--allow-read={proj_path}"))
         .arg(format!("--allow-write={}", out_path.display()))
         .arg("--allow-net")
-        .arg("--allow-env=CICADA_JOB")
+        .arg("--allow-env=CICADA_JOB");
+
+    // Check for a `deno.json` file in the project directory, otherwise set no config file
+    // TODO: we should add a allow-read for the config file if its outside the project directory
+    let deno_config = Path::new(proj_path).join("deno.json");
+    if !deno_config.exists() {
+        deno_command.arg("--no-config");
+    }
+
+    let mut child = deno_command
         .arg("-")
         .args(args)
         .current_dir(proj_path)
@@ -250,6 +260,10 @@ enum Commands {
         /// Disable caching
         #[arg(long)]
         no_cache: bool,
+
+        /// Enable gh action caching
+        #[arg(long, hide = true)]
+        gh_action_cache: bool,
     },
     /// Run a step in a cicada workflow
     #[command(hide = true)]
@@ -262,6 +276,9 @@ enum Commands {
     Update,
     /// List all available completions
     Completions { shell: clap_complete::Shell },
+    /// Create fig completions
+    #[cfg(feature = "fig-completions")]
+    FigCompletion,
     /// Open a pipeline in your editor
     Open {
         /// Pipeline to open
@@ -290,6 +307,7 @@ impl Commands {
                 cicada_dockerfile,
                 oci_args,
                 no_cache,
+                gh_action_cache,
             } => {
                 let oci_backend = oci_args.oci_backend();
 
@@ -442,23 +460,31 @@ impl Commands {
                 ) {
                     (Ok(git_event), Ok(base_ref)) => match pipeline.on {
                         Some(job::Trigger::Options { push, pull_request }) => match &*git_event {
-                            "pull_request" if !pull_request.contains(&base_ref) => {
-                                info!(
-                                    "Skipping pipeline because branch {} is not in {}: {:?}",
-                                    base_ref.bold(),
-                                    "pull_request".bold(),
-                                    pull_request
-                                );
-                                std::process::exit(2);
+                            "pull_request" => {
+                                if let Some(TriggerOn::Branches(pull_request)) = pull_request {
+                                    if !pull_request.contains(&base_ref) {
+                                        info!(
+                                        "Skipping pipeline because branch {} is not in {}: {:?}",
+                                        base_ref.bold(),
+                                        "pull_request".bold(),
+                                        pull_request
+                                    );
+                                        std::process::exit(2);
+                                    }
+                                }
                             }
-                            "push" if !push.contains(&base_ref) => {
-                                info!(
-                                    "Skipping pipeline because branch {} is not in {}: {:?}",
-                                    base_ref.bold(),
-                                    "push".bold(),
-                                    push
-                                );
-                                std::process::exit(2);
+                            "push" => {
+                                if let Some(TriggerOn::Branches(push)) = push {
+                                    if !push.contains(&base_ref) {
+                                        info!(
+                                        "Skipping pipeline because branch {} is not in {}: {:?}",
+                                        base_ref.bold(),
+                                        "push".bold(),
+                                        push
+                                    );
+                                        std::process::exit(2);
+                                    }
+                                }
                             }
                             _ => {}
                         },
@@ -696,6 +722,7 @@ impl Commands {
                                 cicada_image.clone(),
                                 buildctl_exe.clone(),
                                 no_cache,
+                                gh_action_cache,
                                 oci_backend,
                             )
                             .in_current_span(),
@@ -924,6 +951,16 @@ impl Commands {
                     &mut std::io::stdout(),
                 );
             }
+            #[cfg(feature = "fig-completions")]
+            Commands::FigCompletion => {
+                use clap::CommandFactory;
+                clap_complete::generate(
+                    clap_complete_fig::Fig,
+                    &mut Commands::command(),
+                    "cicada",
+                    &mut std::io::stdout(),
+                )
+            }
             Commands::Open { pipeline } => {
                 let resolved_pipeline = resolve_pipeline(pipeline)?;
                 match std::env::var("EDITOR") {
@@ -951,6 +988,8 @@ impl Commands {
             Commands::New { .. } => "new",
             Commands::Update => "update",
             Commands::Completions { .. } => "completions",
+            #[cfg(feature = "fig-completions")]
+            Commands::FigCompletion => "fig-completion",
             Commands::Open { .. } => "open",
             Commands::Doctor { .. } => "doctor",
             Commands::Debug { .. } => "debug",
@@ -966,6 +1005,8 @@ impl Commands {
             Commands::New { .. } => true,
             Commands::Update => true,
             Commands::Completions { .. } => false,
+            #[cfg(feature = "fig-completions")]
+            Commands::FigCompletion => false,
             Commands::Open { .. } => false,
             Commands::Doctor { .. } => true,
             Commands::Debug { .. } => false,
@@ -982,7 +1023,7 @@ async fn main() -> ExitCode {
         return ExitCode::FAILURE;
     }
 
-    if std::env::var_os("CICADA_FORCE_COLOR").is_some() {
+    if std::env::var_os("CICADA_FORCE_COLOR").is_some() || std::env::var_os("CI").is_some() {
         owo_colors::set_override(true);
     }
 
