@@ -302,6 +302,9 @@ impl JobResolved {
         let deno_image = Image::new(format!("docker.io/denoland/deno:bin-{DENO_VERSION}"))
             .with_platform(Platform::LINUX_AMD64);
 
+        let deno_mount = Mount::layer_readonly(deno_image.output(), "/usr/local/bin/deno")
+            .with_selector("/deno");
+
         let cicada_image = match cicada_image {
             Some(cicada_image) => Image::local(cicada_image.into()),
             None => Image::new(format!(
@@ -311,22 +314,14 @@ impl JobResolved {
         }
         .with_platform(Platform::LINUX_AMD64);
 
-        // TODO: replace all the cp and mkdir with native llb commands, this was just quick and dirty
-        let deno_cp = Exec::new(["cp", "/deno-mnt/deno", "/usr/local/bin/deno"])
-            .with_mount(Mount::layer(image.output(), "/", 0))
-            .with_mount(Mount::layer_readonly(deno_image.output(), "/deno-mnt"))
-            .with_custom_name("Install Deno");
-
-        let cicada_cp = Exec::new(["cp", "/cicada-mnt/cicada", "/usr/local/bin/cicada"])
-            .with_mount(Mount::layer(deno_cp.output(0), "/", 0))
-            .with_mount(Mount::layer_readonly(cicada_image.output(), "/cicada-mnt"))
-            .with_custom_name("Install Cicada");
+        let cicada_mount = Mount::layer_readonly(cicada_image.output(), "/usr/local/bin/cicada")
+            .with_selector("/cicada");
 
         let local_cp = Exec::shell(
             "/bin/sh",
             format!("mkdir -p {working_directory} && cp -r /local/. {working_directory}"),
         )
-        .with_mount(Mount::layer(cicada_cp.output(0), "/", 0))
+        .with_mount(Mount::layer(image.output(), "/", 0))
         .with_mount(Mount::layer_readonly(local.output(), "/local"))
         .with_custom_name("Copy local files");
 
@@ -352,14 +347,18 @@ impl JobResolved {
             let output = MultiOwnedOutput::output(&prev_step, 0);
             let root = Mount::layer(output, "/", 0);
 
-            let exec = Arc::new(step.to_exec(
-                root,
-                &self.job.cache_directories,
-                &working_directory,
-                &env,
-                job_index,
-                step_index,
-            ));
+            let exec = Arc::new(
+                step.to_exec(
+                    root,
+                    &self.job.cache_directories,
+                    &working_directory,
+                    &env,
+                    job_index,
+                    step_index,
+                )
+                .with_mount(deno_mount.clone())
+                .with_mount(cicada_mount.clone()),
+            );
 
             prev_step = exec;
         }

@@ -691,7 +691,6 @@ impl Commands {
                                     // .env(["ABC=123".to_owned()])
                                     // .cmd(["/bin/bash".to_oswned()])
                                     .entrypoint(["/app/hello-world".to_owned()])
-                                    .exposed_ports(value)
                                     .build()
                                     .unwrap();
                         
