@@ -42,7 +42,7 @@ use crate::{
     bin_deps::{buildctl_exe, deno_exe, BUILDKIT_VERSION},
     dag::{invert_graph, topological_sort, Node},
     git::github_repo,
-    job::{InspectInfo, JobResolved, OnFail, Pipeline},
+    job::{InspectInfo, JobResolved, OnFail, Pipeline, TriggerOn},
 };
 
 // Transform from https://deno.land/x/cicada/mod.ts to https://deno.land/x/cicada@vX.Y.X/mod.ts
@@ -436,23 +436,31 @@ impl Commands {
                 ) {
                     match pipeline.on {
                         Some(job::Trigger::Options { push, pull_request }) => match &*git_event {
-                            "pull_request" if !pull_request.contains(&base_ref) => {
-                                info!(
-                                    "Skipping pipeline because branch {} is not in {}: {:?}",
-                                    base_ref.bold(),
-                                    "pull_request".bold(),
-                                    pull_request
-                                );
-                                std::process::exit(2);
+                            "pull_request" => {
+                                if let Some(TriggerOn::Branches(pull_request)) = pull_request {
+                                    if !pull_request.contains(&base_ref) {
+                                        info!(
+                                        "Skipping pipeline because branch {} is not in {}: {:?}",
+                                        base_ref.bold(),
+                                        "pull_request".bold(),
+                                        pull_request
+                                    );
+                                        std::process::exit(2);
+                                    }
+                                }
                             }
-                            "push" if !push.contains(&base_ref) => {
-                                info!(
-                                    "Skipping pipeline because branch {} is not in {}: {:?}",
-                                    base_ref.bold(),
-                                    "push".bold(),
-                                    push
-                                );
-                                std::process::exit(2);
+                            "push" => {
+                                if let Some(TriggerOn::Branches(push)) = push {
+                                    if !push.contains(&base_ref) {
+                                        info!(
+                                        "Skipping pipeline because branch {} is not in {}: {:?}",
+                                        base_ref.bold(),
+                                        "push".bold(),
+                                        push
+                                    );
+                                        std::process::exit(2);
+                                    }
+                                }
                             }
                             _ => {}
                         },

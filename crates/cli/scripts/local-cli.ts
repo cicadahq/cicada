@@ -36,11 +36,18 @@ Deno.stat(new URL(modulePath)).catch(() => {
 const module = await import(modulePath);
 const pipeline: Pipeline = module.default;
 
+type SerializedTriggerOn = {
+  type: "branches";
+  branches: string[];
+} | {
+  type: "all";
+};
+
 type SerializedTrigger =
   | {
     type: "options";
-    push: string[];
-    pullRequest: string[];
+    push?: SerializedTriggerOn;
+    pullRequest?: SerializedTriggerOn;
   }
   | {
     type: "denoFunction";
@@ -48,13 +55,17 @@ type SerializedTrigger =
 
 type SerializedPipeline = {
   jobs: SerializedJob[];
-  on: SerializedTrigger;
+  on?: SerializedTrigger;
 };
 
 type SerializedRun =
   | {
     type: "command";
     command: string;
+  }
+  | {
+    type: "args";
+    args: string[];
   }
   | {
     type: "denoFunction";
@@ -109,7 +120,7 @@ const serializeShell = (shell: Shell): SerializedShell => {
   }
 };
 
-const serializeRun = (run: string | StepFn): SerializedRun => {
+const serializeRun = (run: string | string[] | StepFn): SerializedRun => {
   if (typeof run === "string") {
     return {
       type: "command",
@@ -150,11 +161,28 @@ const serializeStep = (step: Step): SerializedStep => {
   }
 };
 
-const serializeTrigger = (trigger?: Trigger): SerializedTrigger => {
+const serializeTriggerOn = (
+  triggerOn: string[] | "all",
+): SerializedTriggerOn => {
+  if (triggerOn === "all") {
+    return {
+      type: "all",
+    };
+  } else {
+    return {
+      type: "branches",
+      branches: triggerOn,
+    };
+  }
+};
+
+const serializeTrigger = (trigger: Trigger): SerializedTrigger => {
   return {
     type: "options",
-    push: trigger?.push ?? [],
-    pullRequest: trigger?.pullRequest ?? [],
+    push: trigger.push ? serializeTriggerOn(trigger.push) : undefined,
+    pullRequest: trigger.pullRequest
+      ? serializeTriggerOn(trigger.pullRequest)
+      : undefined,
   };
 };
 
@@ -177,8 +205,9 @@ const serializePipeline = (pipeline: Pipeline): SerializedPipeline => {
 
   return {
     jobs,
-    // name: pipeline.options?.name ?? undefined,
-    on: serializeTrigger(pipeline.options?.on),
+    on: pipeline.options?.on
+      ? serializeTrigger(pipeline.options?.on)
+      : undefined,
   };
 };
 
