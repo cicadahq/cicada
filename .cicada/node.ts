@@ -86,6 +86,7 @@ const nodeVersion = "18.16.0";
 
 class Builder {
   // Parsed package.json file contents.
+  // deno-lint-ignore no-explicit-any
   #pj: any;
 
   // which packager is used (npm, pnpm, yarn)

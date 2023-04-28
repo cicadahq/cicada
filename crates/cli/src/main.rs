@@ -268,7 +268,7 @@ enum Commands {
         /// Sets the default platform to use
         ///
         /// Example: `linux/amd64` or `linux/arm64`
-        #[arg(long, env = "CICADA_DEFAULT_PLATFORM", default_value = "linux/amd64")]
+        #[arg(long, env = "CICADA_PLATFORM", default_value = "linux/amd64")]
         platform: Platform,
     },
     /// Run a step in a cicada workflow
