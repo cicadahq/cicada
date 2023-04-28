@@ -1,8 +1,14 @@
 use std::fmt::Debug;
 
-use buildkit_rs::client::Client;
+use buildkit_rs::{
+    client::{random_id, session::secret::SecretSource, Client, SessionOptions, SolveOptions},
+    proto::moby::buildkit::v1::{StatusResponse, Vertex, VertexLog, VertexWarning},
+    util::oci::OciBackend,
+};
+use futures::StreamExt;
 use humansize::{format_size, DECIMAL};
 use owo_colors::OwoColorize;
+use tracing::{error, info, warn};
 
 use crate::oci::OciArgs;
 
@@ -30,9 +36,9 @@ pub(crate) enum DebugCommand {
         #[command(flatten)]
         oci_args: OciArgs,
     },
-    // /// Tmp for testing
-    // #[command(hide = true)]
-    // Solve,
+    /// Tmp for testing
+    #[command(hide = true)]
+    Solve,
 }
 
 impl DebugCommand {
@@ -215,28 +221,127 @@ impl DebugCommand {
                         );
                     }
                 }
-            } // DebugCommand::Solve => {
-              //     let builder_image = Image::new("alpine:latest")
-              //         .with_custom_name("Using alpine:latest as a builder");
+            }
 
-              //     let command = Exec::shlex("/bin/sh -c \"echo 'hello world'\"")
-              //         .with_custom_name("create a dummy file")
-              //         .with_mount(Mount::layer_readonly(builder_image.output(), "/"))
-              //         .with_mount(Mount::scratch("/out", 0));
+            DebugCommand::Solve => {
+                use buildkit_rs::llb::*;
 
-              //     let definition: Definition = Definition::new(command.output(0));
+                let builder_image =
+                    Image::new("alpine:latest").with_custom_name("image - alpine:latest");
 
-              //     let mut client =
-              //         Client::connect(OciBackend::Docker, "cicada-buildkitd".into()).await?;
-              //     let res = client
-              //         .solve(SolveOptions {
-              //             id: "123".into(),
-              //             definition,
-              //         })
-              //         .await;
+                let local = Local::new("local".into())
+                    .with_custom_name("local source")
+                    .with_exclude("target");
 
-              //     dbg!(res).unwrap();
-              // }
+                let command = Exec::shell(
+                    "/bin/sh",
+                    "echo 'this is custom logging!!!' && sleep 1 && ls -al /src && cat /run/secrets/abc",
+                )
+                .with_custom_name(
+                    "shell - echo 'this is custom logging!!!' && sleep 1 && echo 'hey'",
+                )
+                .with_mount(Mount::layer_readonly(builder_image.output(), "/"))
+                .with_mount(Mount::layer_readonly(local.output(), "/src"))
+                .with_mount(Mount::scratch("/out", 0))
+                .with_mount(Mount::secret("/run/secrets/abc", "abc", 0, 0, 0o600, false))
+                .ignore_cache(true);
+
+                let definition: Definition = Definition::new(command.output(0));
+
+                let mut client =
+                    Client::connect(OciBackend::Docker, "cicada-buildkitd".into()).await?;
+
+                let session = client
+                    .session(SessionOptions {
+                        name: "cicada".into(),
+                        local: [("local".into(), ".".into())].into_iter().collect(),
+                        secrets: vec![("abc".into(), SecretSource::Memory("abc".into()))]
+                            .into_iter()
+                            .collect(),
+                    })
+                    .await
+                    .unwrap();
+
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+
+                let id = random_id();
+
+                let mut res = client.status(id.clone()).await.unwrap();
+
+                tokio::spawn(async move {
+                    while let Some(event) = res.next().await {
+                        // dbg!(&event);
+                        match event {
+                            Ok(StatusResponse {
+                                vertexes,
+                                statuses: _,
+                                logs,
+                                warnings,
+                            }) => {
+                                for Vertex {
+                                    digest,
+                                    // inputs,
+                                    name,
+                                    cached,
+                                    // started,
+                                    completed,
+                                    // error,
+                                    // progress_group,
+                                    ..
+                                } in vertexes
+                                {
+                                    // let msg_str = String::from_utf8_lossy(&name);
+                                    if completed.is_some() {
+                                        info!(%cached, "{digest}: {name}");
+                                    }
+                                }
+
+                                for VertexLog {
+                                    vertex,
+                                    // timestamp,
+                                    // stream,
+                                    msg,
+                                    ..
+                                } in logs
+                                {
+                                    let msg_str = String::from_utf8_lossy(&msg);
+                                    for line in msg_str.lines() {
+                                        info!("{vertex}: log: {line}");
+                                    }
+                                }
+
+                                for VertexWarning {
+                                    vertex,
+                                    // level,
+                                    short,
+                                    // detail,
+                                    // url,
+                                    // info,
+                                    // ranges,
+                                    ..
+                                } in warnings
+                                {
+                                    let short = String::from_utf8_lossy(&short);
+                                    warn!("{vertex}: {short}");
+                                }
+                            }
+                            Err(e) => {
+                                error!("{:#?}", e);
+                            }
+                        }
+                    }
+                });
+
+                let res = client
+                    .solve(SolveOptions {
+                        id: id.clone(),
+                        session: session.id.clone(),
+                        definition,
+                    })
+                    .await;
+
+                info!(?res);
+            }
         }
 
         Ok(())

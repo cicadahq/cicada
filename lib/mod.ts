@@ -186,12 +186,13 @@ export type Step =
   | StepFn
   | string;
 
-/**
- * The options for a job, including the name, base image, environment variables, secrets, folder cache, and steps.
- */
-export interface JobOptions {
+export interface CommonImageOptions {
   /**
-   * The docker image to use for this job.
+   * The base image to use for this job.
+   *
+   * If no domain is specified, the image will be pulled from Docker Hub.
+   *
+   * If no tag is specified, the image will be pulled from the `latest` tag.
    *
    * @example "node", "node:18", "node:18-alpine"
    */
@@ -225,7 +226,12 @@ export interface JobOptions {
    * @default "/app"
    */
   workingDirectory?: FilePath;
+}
 
+/**
+ * The options for a job, including the name, base image, environment variables, secrets, folder cache, and steps.
+ */
+export interface JobOptions extends CommonImageOptions {
   /**
    * A list of jobs that must run before the current job can be executed.
    */

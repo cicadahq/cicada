@@ -1,9 +1,19 @@
-use std::{collections::HashMap, path::Path, sync::Arc};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    process::{ExitStatus, Stdio},
+    sync::Arc,
+};
 
-use buildkit_rs::reference::Reference;
+use anyhow::Context;
+use buildkit_rs::{llb::Platform, reference::Reference, util::oci::OciBackend};
 use camino::Utf8PathBuf;
 use serde::{Deserialize, Serialize};
-use tracing::error;
+use tokio::{
+    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
+    process::Command,
+};
+use tracing::{error, info, Instrument};
 
 use crate::{bin_deps::DENO_VERSION, git::Github};
 
@@ -242,10 +252,8 @@ pub struct InspectConfig {
     pub hostname: Option<String>,
     pub domainname: Option<String>,
     pub user: Option<String>,
-    #[serde(default)]
-    pub env: Vec<String>,
-    #[serde(default)]
-    pub cmd: Vec<String>,
+    pub env: Option<Vec<String>>,
+    pub cmd: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone)]
@@ -263,6 +271,7 @@ impl JobResolved {
         github: &Option<Github>,
         job_index: usize,
         cicada_image: Option<impl Into<String>>,
+        platform: Platform,
     ) -> Vec<u8> {
         use buildkit_rs::llb::*;
 
@@ -302,11 +311,14 @@ impl JobResolved {
         }
 
         let image = Image::reference(self.image_reference.clone())
-            .with_platform(Platform::LINUX_AMD64)
+            .with_platform(platform.clone())
             .with_resolve_mode(ResolveMode::Local);
 
         let deno_image = Image::new(format!("docker.io/denoland/deno:bin-{DENO_VERSION}"))
-            .with_platform(Platform::LINUX_AMD64);
+            .with_platform(platform.clone());
+
+        let deno_mount = Mount::layer_readonly(deno_image.output(), "/usr/local/bin/deno")
+            .with_selector("/deno");
 
         let cicada_image = match cicada_image {
             Some(cicada_image) => Image::local(cicada_image.into()),
@@ -315,28 +327,20 @@ impl JobResolved {
                 env!("CARGO_PKG_VERSION")
             )),
         }
-        .with_platform(Platform::LINUX_AMD64);
+        .with_platform(platform);
 
-        // TODO: replace all the cp and mkdir with native llb commands, this was just quick and dirty
-        let deno_cp = Exec::new(["cp", "/deno-mnt/deno", "/usr/local/bin/deno"])
-            .with_mount(Mount::layer(image.output(), "/", 0))
-            .with_mount(Mount::layer_readonly(deno_image.output(), "/deno-mnt"))
-            .with_custom_name("Install Deno");
-
-        let cicada_cp = Exec::new(["cp", "/cicada-mnt/cicada", "/usr/local/bin/cicada"])
-            .with_mount(Mount::layer(deno_cp.output(0), "/", 0))
-            .with_mount(Mount::layer_readonly(cicada_image.output(), "/cicada-mnt"))
-            .with_custom_name("Install Cicada");
+        let cicada_mount = Mount::layer_readonly(cicada_image.output(), "/usr/local/bin/cicada")
+            .with_selector("/cicada");
 
         let local_cp = Exec::shell(
             "/bin/sh",
             format!("mkdir -p {working_directory} && cp -r /local/. {working_directory}"),
         )
-        .with_mount(Mount::layer(cicada_cp.output(0), "/", 0))
+        .with_mount(Mount::layer(image.output(), "/", 0))
         .with_mount(Mount::layer_readonly(local.output(), "/local"))
         .with_custom_name("Copy local files");
 
-        let mut env = self.image_info.config.env.clone();
+        let mut env = self.image_info.config.env.clone().unwrap_or_default();
 
         env.extend([
             "CI=1".into(),
@@ -358,14 +362,18 @@ impl JobResolved {
             let output = MultiOwnedOutput::output(&prev_step, 0);
             let root = Mount::layer(output, "/", 0);
 
-            let exec = Arc::new(step.to_exec(
-                root,
-                &self.job.cache_directories,
-                &working_directory,
-                &env,
-                job_index,
-                step_index,
-            ));
+            let exec = Arc::new(
+                step.to_exec(
+                    root,
+                    &self.job.cache_directories,
+                    &working_directory,
+                    &env,
+                    job_index,
+                    step_index,
+                )
+                .with_mount(deno_mount.clone())
+                .with_mount(cicada_mount.clone()),
+            );
 
             prev_step = exec;
         }
@@ -373,6 +381,159 @@ impl JobResolved {
         let bytes = Definition::new(prev_step.output(0)).into_bytes();
 
         bytes
+    }
+
+    // TODO: make this take an options struct
+    #[allow(clippy::too_many_arguments)]
+    pub async fn solve(
+        self,
+        job_index: usize,
+        github: Option<Github>,
+        pipeline_name: String,
+        project_directory: String,
+        all_secrets: Vec<(String, String)>,
+        cicada_image: Option<String>,
+        buildctl_exe: PathBuf,
+        no_cache: bool,
+        gh_action_cache: bool,
+        oci_backend: OciBackend,
+        platform: Platform,
+    ) -> anyhow::Result<(String, ExitStatus, Self)> {
+        // let name: String = self.job.name.clone().unwrap().replace('\"', "\"\"");
+
+        // let config = oci_spec::image::ConfigBuilder::default()
+        //     .user("root".to_owned())
+        //     .env(["ABC=123".to_owned()])
+        //     .cmd(["/bin/bash".to_owned()])
+        //     .entrypoint(["/app/hello-world".to_owned()])
+        //     .build()
+        //     .unwrap();
+
+        // let image_config = oci_spec::image::ImageConfigurationBuilder::default()
+        //     .config(config)
+        //     .build()
+        //     .unwrap();
+
+        // let image_config_json = serde_json::to_string(&image_config)
+        //     .context("Unable to serialize OCI spec to JSON")?
+        //     .replace('\"', "\"\"");
+
+        let mut buildctl = Command::new(&buildctl_exe);
+        buildctl
+            .arg("build")
+            .arg("--local")
+            .arg(format!("local={project_directory}"))
+            .arg("--progress")
+            .arg("plain")
+            // .arg("--output")
+            // .arg(format!(
+            //     "type=docker,\"name={name}\",\"containerimage.config={image_config_json}\""
+            // ))
+            .env(
+                "BUILDKIT_HOST",
+                format!("{}-container://cicada-buildkitd", oci_backend.as_str()),
+            );
+
+        if gh_action_cache {
+            buildctl
+                .arg("--export-cache")
+                .arg("type=gha")
+                .arg("--import-cache")
+                .arg("type=gha");
+        }
+
+        if no_cache {
+            buildctl.arg("--no-cache");
+        }
+
+        for (key, _) in &all_secrets {
+            buildctl.arg("--secret").arg(format!("id={key}"));
+        }
+
+        let mut buildctl_child = buildctl
+            .envs(all_secrets)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()?;
+
+        let llb_vec = self.to_llb(
+            pipeline_name,
+            &project_directory,
+            &github,
+            job_index,
+            cicada_image,
+            platform,
+        );
+
+        let mut stdin = buildctl_child.stdin.take().unwrap();
+        stdin.write_all(&llb_vec).in_current_span().await?;
+        stdin.shutdown().in_current_span().await?;
+        drop(stdin);
+
+        // Print the output as it comes in
+        let stderr = buildctl_child.stderr.take().unwrap();
+
+        let stderr_handle = tokio::spawn(
+            async move {
+                let mut buf_reader = BufReader::new(stderr);
+                let mut line = String::new();
+                loop {
+                    if let Err(err) = buf_reader.read_line(&mut line).in_current_span().await {
+                        error!("{err}");
+                        return;
+                    }
+                    if line.is_empty() {
+                        return;
+                    }
+
+                    info!("{}", line.trim_end_matches('\n'));
+                    line.clear();
+                }
+            }
+            .in_current_span(),
+        );
+
+        let long_name = self.long_name(job_index);
+
+        // Stdout is the tar stream that we want to pipe to docker load
+        // let mut stdout = buildctl_child.stdout.take().unwrap();
+
+        // let mut docker_load = Command::new("docker")
+        //     .arg("load")
+        //     .stdin(Stdio::piped())
+        //     .spawn()?;
+
+        // let mut docker_load_stdin = docker_load.stdin.take().unwrap();
+        // tokio::io::copy(&mut stdout, &mut docker_load_stdin)
+        //     .in_current_span()
+        //     .await?;
+        // drop(docker_load_stdin);
+
+        stderr_handle
+            .in_current_span()
+            .await
+            .with_context(|| format!("Failed to read stderr for {long_name}"))?;
+
+        // let docker_load_status = docker_load
+        //     .wait()
+        //     .in_current_span()
+        //     .await
+        //     .context("Failed to wait for docker load to finish")?;
+
+        // if !docker_load_status.success() {
+        //     return Err(anyhow::anyhow!(
+        //         "Failed to load image for {long_name} into docker"
+        //     ));
+        // }
+
+        let status = buildctl_child
+            .wait()
+            .in_current_span()
+            .await
+            .with_context(|| format!("Failed to wait for {long_name} to finish"))?;
+
+        anyhow::Ok((long_name, status, self))
     }
 
     pub fn display_name(&self, index: usize) -> String {
@@ -391,9 +552,17 @@ impl JobResolved {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Pipeline {
     pub jobs: Vec<Job>,
     pub on: Option<Trigger>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(tag = "type")]
+pub enum CicadaType {
+    Pipeline(Pipeline),
+    Image(Job),
 }

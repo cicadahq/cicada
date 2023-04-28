@@ -128,16 +128,21 @@ impl<S: Subscriber + for<'a> LookupSpan<'a>> Layer<S> for CustomFormatLayer {
 }
 
 pub fn logging_init() -> Result<()> {
+    let log_type = std::env::var("CICADA_LOG_TYPE");
     let log_json = std::env::var_os("CICADA_LOG_JSON").is_some();
-    match log_json {
-        true => {
-            tracing::subscriber::set_global_default(SubscriberBuilder::default().json().finish())?;
-        }
-        false => {
-            tracing_subscriber::registry()
-                .with(CustomFormatLayer::new())
-                .try_init()?;
-        }
+
+    if log_type.as_deref() == Ok("json") || log_json {
+        tracing::subscriber::set_global_default(SubscriberBuilder::default().json().finish())?;
+    } else if log_type.as_deref() == Ok("pretty") {
+        tracing_subscriber::fmt()
+            .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+            .with_ansi(true)
+            .with_writer(std::io::stdout)
+            .init();
+    } else {
+        tracing_subscriber::registry()
+            .with(CustomFormatLayer::new())
+            .try_init()?;
     }
 
     Ok(())

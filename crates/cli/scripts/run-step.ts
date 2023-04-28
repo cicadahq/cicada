@@ -1,4 +1,5 @@
 import { Pipeline } from "https://deno.land/x/cicada/mod.ts";
+import { Image } from "https://deno.land/x/cicada/expiremental/image.ts";
 
 const moduleFile = Deno.env.get("CICADA_PIPELINE_FILE");
 if (!moduleFile) {
@@ -11,10 +12,12 @@ if (!moduleFile) {
 }
 
 const module = await import(moduleFile);
-const workflow: Pipeline = module.default;
+const workflow: Pipeline | Image = module.default;
 const workflowNum = parseInt(Deno.args[0], 10);
 const stepNum = parseInt(Deno.args[1], 10);
-const job = workflow.jobs[workflowNum];
+const job = workflow instanceof Pipeline
+  ? workflow.jobs[workflowNum]
+  : workflow;
 
 const step = job.options.steps[stepNum];
 
