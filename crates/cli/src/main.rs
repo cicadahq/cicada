@@ -47,7 +47,7 @@ static DENO_LAND_REGEX: Lazy<regex::Regex> =
     Lazy::new(|| regex::Regex::new(r#"deno.land/x/cicada/"#).unwrap());
 
 fn replace_with_version(s: &str) -> String {
-    if std::env::var_os("CICADA_UNVERSIONED_DENO").is_some() {
+    if std::env::var_os("CICADA_UNVERSIONED_DENO").is_some() || cfg!(debug_assertions) {
         return s.to_owned();
     }
 
