@@ -1,4 +1,5 @@
-import { Image, Pipeline } from "https://deno.land/x/cicada/mod.ts";
+import { Pipeline } from "https://deno.land/x/cicada/mod.ts";
+import { Image } from "https://deno.land/x/cicada/expiremental/image.ts";
 
 const moduleFile = Deno.env.get("CICADA_PIPELINE_FILE");
 if (!moduleFile) {
