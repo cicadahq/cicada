@@ -1,4 +1,4 @@
-import { Image } from "https://deno.land/x/cicada/expiremental/image.ts";
+import { Image } from "https://deno.land/x/cicada/experimental/image.ts";
 
 const image = new Image({
   name: "my-app",

@@ -1,4 +1,4 @@
-import { Image } from "https://deno.land/x/cicada/expiremental/image.ts";
+import { Image } from "https://deno.land/x/cicada/experimental/image.ts";
 
 // # Adjust NODE_VERSION as desired
 // ARG NODE_VERSION=<%= nodeVersion %>
