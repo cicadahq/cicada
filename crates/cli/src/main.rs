@@ -39,7 +39,7 @@ use tokio::{io::AsyncWriteExt, process::Command};
 use crate::{
     bin_deps::{buildctl_exe, deno_exe, BUILDKIT_VERSION},
     dag::{invert_graph, topological_sort, Node},
-    git::{git_changed_files, github_repo},
+    git::{git_changed_files, git_uncommitted_files, github_repo},
     job::{CicadaType, InspectInfo, JobResolved, OnFail, Pipeline, TriggerOn},
 };
 
@@ -502,6 +502,7 @@ impl Commands {
                                 }
                                 _ => (),
                             }
+
                             if !paths.is_empty() {
                                 let globset = {
                                     let mut builder = GlobSetBuilder::new();
@@ -510,11 +511,15 @@ impl Commands {
                                     }
                                     builder.build()?
                                 };
-
-                                let matching_files = git_changed_files()
-                                    .await?
-                                    .iter()
-                                    .any(|f| globset.is_match(f));
+                                let changed_files = match (
+                                    std::env::var("CICADA_GIT_BASE"),
+                                    std::env::var("CICADA_GIT_HEAD"),
+                                ) {
+                                    (Ok(base), Ok(head)) => git_changed_files(base, head).await?,
+                                    _ => git_uncommitted_files().await?,
+                                };
+                                let matching_files =
+                                    changed_files.iter().any(|f| globset.is_match(f));
 
                                 if !matching_files {
                                     info!(

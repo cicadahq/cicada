@@ -9,7 +9,7 @@ pub struct Origin {
     pub url: String,
 }
 
-pub async fn git_changed_files() -> Result<Vec<String>> {
+pub async fn git_uncommitted_files() -> Result<Vec<String>> {
     let output = Command::new("git")
         .args(["status", "--ignored=no", "--short"])
         .output()
@@ -17,7 +17,7 @@ pub async fn git_changed_files() -> Result<Vec<String>> {
 
     if !output.status.success() {
         return Err(anyhow::anyhow!(
-            "Failed to get git changed files: {}",
+            "Failed to get git uncommitted files: {}",
             String::from_utf8_lossy(&output.stderr)
         ));
     };
@@ -28,6 +28,25 @@ pub async fn git_changed_files() -> Result<Vec<String>> {
         .collect();
 
     Ok(changed_files)
+}
+
+pub async fn git_changed_files(base: String, head: String) -> Result<Vec<String>> {
+    let output = Command::new("git")
+        .args(["--no-pager", "diff", &base, &head, "--name-only"])
+        .output()
+        .await?;
+
+    if !output.status.success() {
+        return Err(anyhow::anyhow!(
+            "Failed to get git changed files: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    };
+
+    Ok(String::from_utf8(output.stdout)?
+        .lines()
+        .map(|s| s.to_string())
+        .collect())
 }
 
 pub async fn git_remotes() -> Result<Vec<Origin>> {
