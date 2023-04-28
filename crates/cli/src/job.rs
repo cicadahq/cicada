@@ -69,7 +69,7 @@ impl CacheDirectory {
 #[serde(rename_all = "camelCase")]
 #[serde(tag = "type")]
 pub enum TriggerOn {
-    Branches(Vec<String>),
+    Branches { branches: Vec<String> },
     All,
 }
 

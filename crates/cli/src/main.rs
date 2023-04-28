@@ -469,8 +469,8 @@ impl Commands {
                     (Ok(git_event), Ok(base_ref)) => match pipeline.on {
                         Some(job::Trigger::Options { push, pull_request }) => match &*git_event {
                             "pull_request" => {
-                                if let Some(TriggerOn::Branches(pull_request)) = pull_request {
-                                    if !pull_request.contains(&base_ref) {
+                                if let Some(TriggerOn::Branches { branches }) = &pull_request {
+                                    if !branches.contains(&base_ref) {
                                         info!(
                                         "Skipping pipeline because branch {} is not in {}: {:?}",
                                         base_ref.bold(),
@@ -482,8 +482,8 @@ impl Commands {
                                 }
                             }
                             "push" => {
-                                if let Some(TriggerOn::Branches(push)) = push {
-                                    if !push.contains(&base_ref) {
+                                if let Some(TriggerOn::Branches { branches }) = &push {
+                                    if !branches.contains(&base_ref) {
                                         info!(
                                         "Skipping pipeline because branch {} is not in {}: {:?}",
                                         base_ref.bold(),
