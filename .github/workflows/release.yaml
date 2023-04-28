@@ -65,7 +65,7 @@ jobs:
         if: matrix.target == 'x86_64-unknown-linux-gnu' || matrix.target == 'x86_64-unknown-linux-musl' || matrix.target == 'aarch64-unknown-linux-musl'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libssl-dev musl-tools protobuf-compiler
+          sudo apt-get install -y libssl-dev musl-tools protobuf-compiler clang llvm
 
       - name: Install MacOS dependencies
         if: matrix.target == 'x86_64-apple-darwin' || matrix.target == 'aarch64-apple-darwin'
