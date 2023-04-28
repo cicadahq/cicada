@@ -216,6 +216,7 @@ pub fn resolve_pipeline(pipeline: impl AsRef<Path>) -> Result<PathBuf> {
 
 #[derive(Parser, Debug)]
 #[command(name = "cicada", bin_name = "cicada", author, version, about)]
+#[allow(clippy::large_enum_variant)]
 enum Commands {
     /// Run a cicada pipeline
     Run {

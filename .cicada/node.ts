@@ -1,4 +1,4 @@
-import { Image } from "https://deno.land/x/cicada/mod.ts";
+import { Image } from "https://deno.land/x/cicada/expiremental/image.ts";
 
 // # Adjust NODE_VERSION as desired
 // ARG NODE_VERSION=<%= nodeVersion %>
@@ -219,8 +219,8 @@ const image = new Image({
     `${builder.packager} install`,
     `${builder.packager} run build`,
   ],
-  ports: [builder.port],
-  run: builder.startCommand,
+  exposedPorts: [builder.port],
+  cmd: builder.startCommand,
 });
 
 export default image;
