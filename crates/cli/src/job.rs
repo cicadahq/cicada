@@ -399,25 +399,24 @@ impl JobResolved {
         oci_backend: OciBackend,
         platform: Platform,
     ) -> anyhow::Result<(String, ExitStatus, Self)> {
-        let name: String = self.job.name.clone().unwrap().replace('\"', "\"\"");
+        // let name: String = self.job.name.clone().unwrap().replace('\"', "\"\"");
 
-        let config = oci_spec::image::ConfigBuilder::default()
-            // .user("root".to_string())
-            // .working_dir(job.working_directory.clone())
-            // .env(["ABC=123".to_owned()])
-            // .cmd(["/bin/bash".to_oswned()])
-            .entrypoint(["/app/hello-world".to_owned()])
-            .build()
-            .unwrap();
+        // let config = oci_spec::image::ConfigBuilder::default()
+        //     .user("root".to_owned())
+        //     .env(["ABC=123".to_owned()])
+        //     .cmd(["/bin/bash".to_owned()])
+        //     .entrypoint(["/app/hello-world".to_owned()])
+        //     .build()
+        //     .unwrap();
 
-        let image_config = oci_spec::image::ImageConfigurationBuilder::default()
-            .config(config)
-            .build()
-            .unwrap();
+        // let image_config = oci_spec::image::ImageConfigurationBuilder::default()
+        //     .config(config)
+        //     .build()
+        //     .unwrap();
 
-        let image_config_json = serde_json::to_string(&image_config)
-            .context("Unable to serialize OCI spec to JSON")?
-            .replace('\"', "\"\"");
+        // let image_config_json = serde_json::to_string(&image_config)
+        //     .context("Unable to serialize OCI spec to JSON")?
+        //     .replace('\"', "\"\"");
 
         let mut buildctl = Command::new(&buildctl_exe);
         buildctl
@@ -426,10 +425,10 @@ impl JobResolved {
             .arg(format!("local={project_directory}"))
             .arg("--progress")
             .arg("plain")
-            .arg("--output")
-            .arg(format!(
-                "type=docker,\"name={name}\",\"containerimage.config={image_config_json}\""
-            ))
+            // .arg("--output")
+            // .arg(format!(
+            //     "type=docker,\"name={name}\",\"containerimage.config={image_config_json}\""
+            // ))
             .env(
                 "BUILDKIT_HOST",
                 format!("{}-container://cicada-buildkitd", oci_backend.as_str()),
@@ -498,35 +497,35 @@ impl JobResolved {
         let long_name = self.long_name(job_index);
 
         // Stdout is the tar stream that we want to pipe to docker load
-        let mut stdout = buildctl_child.stdout.take().unwrap();
+        // let mut stdout = buildctl_child.stdout.take().unwrap();
 
-        let mut docker_load = Command::new("docker")
-            .arg("load")
-            .stdin(Stdio::piped())
-            .spawn()?;
+        // let mut docker_load = Command::new("docker")
+        //     .arg("load")
+        //     .stdin(Stdio::piped())
+        //     .spawn()?;
 
-        let mut docker_load_stdin = docker_load.stdin.take().unwrap();
-        tokio::io::copy(&mut stdout, &mut docker_load_stdin)
-            .in_current_span()
-            .await?;
-        drop(docker_load_stdin);
+        // let mut docker_load_stdin = docker_load.stdin.take().unwrap();
+        // tokio::io::copy(&mut stdout, &mut docker_load_stdin)
+        //     .in_current_span()
+        //     .await?;
+        // drop(docker_load_stdin);
 
         stderr_handle
             .in_current_span()
             .await
             .with_context(|| format!("Failed to read stderr for {long_name}"))?;
 
-        let docker_load_status = docker_load
-            .wait()
-            .in_current_span()
-            .await
-            .context("Failed to wait for docker load to finish")?;
+        // let docker_load_status = docker_load
+        //     .wait()
+        //     .in_current_span()
+        //     .await
+        //     .context("Failed to wait for docker load to finish")?;
 
-        if !docker_load_status.success() {
-            return Err(anyhow::anyhow!(
-                "Failed to load image for {long_name} into docker"
-            ));
-        }
+        // if !docker_load_status.success() {
+        //     return Err(anyhow::anyhow!(
+        //         "Failed to load image for {long_name} into docker"
+        //     ));
+        // }
 
         let status = buildctl_child
             .wait()
