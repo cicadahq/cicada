@@ -28,6 +28,10 @@ jobs:
             archive: tar.gz tar.zst
             os: ubuntu-latest
             features: telemetry
+          - target: aarch64-unknown-linux-musl
+            archive: tar.gz tar.zst
+            os: ubuntu-latest
+            features: telemetry
           - target: x86_64-apple-darwin
             archive: tar.gz
             os: macos-latest
@@ -58,7 +62,7 @@ jobs:
           target: ${{ matrix.target }}
 
       - name: Install Linux dependencies
-        if: matrix.target == 'x86_64-unknown-linux-gnu' || matrix.target == 'x86_64-unknown-linux-musl'
+        if: matrix.target == 'x86_64-unknown-linux-gnu' || matrix.target == 'x86_64-unknown-linux-musl' || matrix.target == 'aarch64-unknown-linux-musl'
         run: |
           sudo apt-get update
           sudo apt-get install -y libssl-dev musl-tools protobuf-compiler
@@ -84,7 +88,7 @@ jobs:
           SEGMENT_WRITE_KEY: ${{ secrets.SEGMENT_WRITE_KEY }}
 
       - name: Upload release (linux)
-        if: matrix.target == 'x86_64-unknown-linux-gnu' || matrix.target == 'x86_64-unknown-linux-musl'
+        if: matrix.target == 'x86_64-unknown-linux-gnu' || matrix.target == 'x86_64-unknown-linux-musl' || matrix.target == 'aarch64-unknown-linux-musl'
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         run: |

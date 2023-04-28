@@ -6,7 +6,7 @@ use std::{
 };
 
 use anyhow::Context;
-use buildkit_rs::{reference::Reference, util::oci::OciBackend};
+use buildkit_rs::{llb::Platform, reference::Reference, util::oci::OciBackend};
 use camino::Utf8PathBuf;
 use serde::{Deserialize, Serialize};
 use tokio::{
@@ -252,10 +252,8 @@ pub struct InspectConfig {
     pub hostname: Option<String>,
     pub domainname: Option<String>,
     pub user: Option<String>,
-    #[serde(default)]
-    pub env: Vec<String>,
-    #[serde(default)]
-    pub cmd: Vec<String>,
+    pub env: Option<Vec<String>>,
+    pub cmd: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone)]
@@ -273,6 +271,7 @@ impl JobResolved {
         github: &Option<Github>,
         job_index: usize,
         cicada_image: Option<impl Into<String>>,
+        platform: Platform,
     ) -> Vec<u8> {
         use buildkit_rs::llb::*;
 
@@ -312,11 +311,11 @@ impl JobResolved {
         }
 
         let image = Image::reference(self.image_reference.clone())
-            .with_platform(Platform::LINUX_AMD64)
+            .with_platform(platform.clone())
             .with_resolve_mode(ResolveMode::Local);
 
         let deno_image = Image::new(format!("docker.io/denoland/deno:bin-{DENO_VERSION}"))
-            .with_platform(Platform::LINUX_AMD64);
+            .with_platform(platform.clone());
 
         let deno_mount = Mount::layer_readonly(deno_image.output(), "/usr/local/bin/deno")
             .with_selector("/deno");
@@ -328,7 +327,7 @@ impl JobResolved {
                 env!("CARGO_PKG_VERSION")
             )),
         }
-        .with_platform(Platform::LINUX_AMD64);
+        .with_platform(platform);
 
         let cicada_mount = Mount::layer_readonly(cicada_image.output(), "/usr/local/bin/cicada")
             .with_selector("/cicada");
@@ -341,7 +340,7 @@ impl JobResolved {
         .with_mount(Mount::layer_readonly(local.output(), "/local"))
         .with_custom_name("Copy local files");
 
-        let mut env = self.image_info.config.env.clone();
+        let mut env = self.image_info.config.env.clone().unwrap_or_default();
 
         env.extend([
             "CI=1".into(),
@@ -396,6 +395,7 @@ impl JobResolved {
         no_cache: bool,
         gh_action_cache: bool,
         oci_backend: OciBackend,
+        platform: Platform,
     ) -> anyhow::Result<(String, ExitStatus, Self)> {
         let name: String = self.job.name.clone().unwrap().replace('\"', "\"\"");
 
@@ -462,6 +462,7 @@ impl JobResolved {
             &github,
             job_index,
             cicada_image,
+            platform,
         );
 
         let mut stdin = buildctl_child.stdin.take().unwrap();

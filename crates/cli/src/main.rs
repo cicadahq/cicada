@@ -12,7 +12,7 @@ mod update;
 mod util;
 
 use anyhow::{bail, Context, Result};
-use buildkit_rs::{reference::Reference, util::oci::OciBackend};
+use buildkit_rs::{llb::Platform, reference::Reference, util::oci::OciBackend};
 use clap_complete::generate;
 use dialoguer::theme::ColorfulTheme;
 use logging::logging_init;
@@ -264,6 +264,12 @@ enum Commands {
         /// Enable gh action caching
         #[arg(long, hide = true)]
         gh_action_cache: bool,
+
+        /// Sets the default platform to use
+        ///
+        /// Example: `linux/amd64` or `linux/arm64`
+        #[arg(long, env = "CICADA_DEFAULT_PLATFORM", default_value = "linux/amd64")]
+        platform: Platform,
     },
     /// Run a step in a cicada workflow
     #[command(hide = true)]
@@ -308,6 +314,7 @@ impl Commands {
                 oci_args,
                 no_cache,
                 gh_action_cache,
+                platform,
             } => {
                 let oci_backend = oci_args.oci_backend();
 
@@ -599,7 +606,12 @@ impl Commands {
 
                             // Run pull to grab the image
                             let mut pull_child = Command::new(oci_backend.as_str())
-                                .args(["pull", &image_reference_str, "--platform", "linux/amd64"])
+                                .args([
+                                    "pull",
+                                    &image_reference_str,
+                                    "--platform",
+                                    &platform.to_string(),
+                                ])
                                 .spawn()?;
 
                             if !pull_child.wait().await?.success() {
@@ -724,6 +736,7 @@ impl Commands {
                                 no_cache,
                                 gh_action_cache,
                                 oci_backend,
+                                platform.clone(),
                             )
                             .in_current_span(),
                         )
