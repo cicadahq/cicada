@@ -383,6 +383,8 @@ impl JobResolved {
         bytes
     }
 
+    // TODO: make this take an options struct
+    #[allow(clippy::too_many_arguments)]
     pub async fn solve(
         self,
         job_index: usize,
@@ -415,7 +417,7 @@ impl JobResolved {
 
         let image_config_json = serde_json::to_string(&image_config)
             .context("Unable to serialize OCI spec to JSON")?
-            .replace("\"", "\"\"");
+            .replace('\"', "\"\"");
 
         let mut buildctl = Command::new(&buildctl_exe);
         buildctl
@@ -518,7 +520,7 @@ impl JobResolved {
             .wait()
             .in_current_span()
             .await
-            .with_context(|| format!("Failed to wait for docker load to finish"))?;
+            .context("Failed to wait for docker load to finish")?;
 
         if !docker_load_status.success() {
             return Err(anyhow::anyhow!(
