@@ -98,7 +98,6 @@ jobs:
           version=${{ steps.version.outputs.version }}
           echo "version=$version"
 
-          strip target/${{ matrix.target }}/release/cicada-cli
           mkdir out
           mv target/${{ matrix.target }}/release/cicada-cli out/cicada
 
@@ -121,7 +120,6 @@ jobs:
           version=${{ steps.version.outputs.version }}
           echo "version=$version"
 
-          strip target/${{ matrix.target }}/release/cicada-cli
           mkdir out
           mv target/${{ matrix.target }}/release/cicada-cli out/cicada
 
