@@ -10,7 +10,7 @@ license.workspace = true
 authors.workspace = true
 
 [features]
-default = []
+default = ["managed-bins"]
 # downloads a managed version of deno/buildctl if a valid version is not found on the path
 managed-bins = ["dep:zip", "dep:tar", "dep:flate2"]
 # enables segment + sentry telemetry
