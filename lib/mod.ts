@@ -314,6 +314,8 @@ export interface PipelineOptions {
  * A pipeline is an array of jobs. Jobs are executed in parallel by default.
  */
 export class Pipeline {
+  type = "pipeline" as const;
+
   /**
    * Creates a new Pipeline instance.
    * @param jobs - An array of jobs to include in the pipeline.

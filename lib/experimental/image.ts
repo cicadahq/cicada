@@ -57,6 +57,8 @@ export interface ImageOptions extends CommonImageOptions {
  * Defines an image that is built
  */
 export class Image {
+  type = "image" as const;
+
   /**
    * @deprecated Do not use. The _uuid property is unstable and should be considered an internal implementation detail.
    */

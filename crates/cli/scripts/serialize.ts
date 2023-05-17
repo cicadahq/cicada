@@ -39,7 +39,7 @@ const module = await import(modulePath);
 
 let pipeline: Pipeline | Image;
 
-if (module.default instanceof Pipeline || module.default instanceof Image) {
+if (module.default?.type === "pipeline" || module.default?.type === "image") {
   pipeline = module.default;
 } else {
   console.error(
@@ -237,7 +237,7 @@ const serializePipeline = (pipeline: Pipeline): SerializedPipeline => {
 };
 
 let object;
-if (pipeline instanceof Pipeline) {
+if (pipeline.type === "pipeline") {
   object = serializePipeline(pipeline);
 } else {
   const job = new Job({
