@@ -6,8 +6,8 @@ use tokio::process::Command;
 #[cfg(feature = "managed-bins")]
 use std::env::consts::EXE_SUFFIX;
 
-pub const DENO_VERSION: &str = "1.32.5";
-pub const DENO_VERSION_REQ: &str = ">=1.32";
+pub const DENO_VERSION: &str = "1.33.4";
+pub const DENO_VERSION_REQ: &str = ">=1.33";
 
 pub const BUILDKIT_VERSION: &str = "0.11.6";
 
