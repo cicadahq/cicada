@@ -38,6 +38,16 @@ import { DockerImages } from "https://deno.land/x/cicada/types/dockerImages.ts";
 export type FilePath = string;
 
 /**
+ * A glob representing more or one path.
+ *
+ * @example
+ * ```ts
+ * const glob: Glob = "src/*.ts"
+ * ```
+ */
+export type Glob = string;
+
+/**
  * Options for a cached directory
  *
  * @example
@@ -284,6 +294,10 @@ export interface TriggerOptions {
    * Use `'all'` if you'd like for any branch to trigger the pipeline.
    */
   pullRequest?: Branch[] | "all";
+  /**
+   * Which paths should trigger the pipeline on a push or pullRequest.
+   */
+  paths?: Glob[];
 }
 
 /**

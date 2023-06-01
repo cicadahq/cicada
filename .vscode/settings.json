@@ -8,5 +8,10 @@
     "editor.defaultFormatter": "denoland.vscode-deno"
   },
   // Rust
-  "rust-analyzer.cargo.features": "all"
+  "rust-analyzer.cargo.features": "all",
+  "[rust]": {
+    "editor.tabSize": 4,
+    "editor.insertSpaces": true,
+    "editor.detectIndentation": false
+  }
 }

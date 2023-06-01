@@ -80,6 +80,8 @@ pub enum Trigger {
     Options {
         push: Option<TriggerOn>,
         pull_request: Option<TriggerOn>,
+        #[serde(default)]
+        paths: Vec<String>,
     },
     DenoFunction,
 }

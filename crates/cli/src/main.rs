@@ -32,13 +32,14 @@ use url::Url;
 
 use ahash::{HashMap, HashMapExt};
 use clap::Parser;
+use globset::{Glob, GlobSetBuilder};
 use owo_colors::{OwoColorize, Stream};
 use tokio::{io::AsyncWriteExt, process::Command};
 
 use crate::{
     bin_deps::{buildctl_exe, deno_exe, BUILDKIT_VERSION},
     dag::{invert_graph, topological_sort, Node},
-    git::github_repo,
+    git::{git_changed_files, git_uncommitted_files, github_repo},
     job::{CicadaType, InspectInfo, JobResolved, OnFail, Pipeline, TriggerOn},
 };
 
@@ -467,35 +468,68 @@ impl Commands {
                     std::env::var("CICADA_BASE_REF"),
                 ) {
                     (Ok(git_event), Ok(base_ref)) => match pipeline.on {
-                        Some(job::Trigger::Options { push, pull_request }) => match &*git_event {
-                            "pull_request" => {
-                                if let Some(TriggerOn::Branches { branches }) = &pull_request {
-                                    if !branches.contains(&base_ref) {
-                                        info!(
-                                        "Skipping pipeline because branch {} is not in {}: {:?}",
-                                        base_ref.bold(),
-                                        "pull_request".bold(),
-                                        pull_request
-                                    );
-                                        std::process::exit(2);
+                        Some(job::Trigger::Options {
+                            push,
+                            pull_request,
+                            paths,
+                        }) => {
+                            match &*git_event {
+                                "pull_request" => {
+                                    if let Some(TriggerOn::Branches { branches }) = &pull_request {
+                                        if !branches.contains(&base_ref) {
+                                            info!(
+                                            "Skipping pipeline because branch {} is not in {}: {:?}",
+                                            base_ref.bold(),
+                                            "pull_request".bold(),
+                                            pull_request
+                                        );
+                                            std::process::exit(2);
+                                        }
                                     }
                                 }
-                            }
-                            "push" => {
-                                if let Some(TriggerOn::Branches { branches }) = &push {
-                                    if !branches.contains(&base_ref) {
-                                        info!(
+                                "push" => {
+                                    if let Some(TriggerOn::Branches { branches }) = &push {
+                                        if !branches.contains(&base_ref) {
+                                            info!(
                                         "Skipping pipeline because branch {} is not in {}: {:?}",
                                         base_ref.bold(),
                                         "push".bold(),
                                         push
                                     );
-                                        std::process::exit(2);
+                                            std::process::exit(2);
+                                        }
                                     }
                                 }
+                                _ => (),
                             }
-                            _ => {}
-                        },
+
+                            if !paths.is_empty() {
+                                let globset = {
+                                    let mut builder = GlobSetBuilder::new();
+                                    for path in paths.iter() {
+                                        builder.add(Glob::new(path)?);
+                                    }
+                                    builder.build()?
+                                };
+                                let changed_files = match (
+                                    std::env::var("CICADA_GIT_BASE"),
+                                    std::env::var("CICADA_GIT_HEAD"),
+                                ) {
+                                    (Ok(base), Ok(head)) => git_changed_files(base, head).await?,
+                                    _ => git_uncommitted_files().await?,
+                                };
+                                let matching_files =
+                                    changed_files.iter().any(|f| globset.is_match(f));
+
+                                if !matching_files {
+                                    info!(
+                                        "Skipping pipeline because no changed file is matching paths: {:?}",
+                                        paths
+                                    );
+                                    std::process::exit(2);
+                                }
+                            }
+                        }
                         Some(job::Trigger::DenoFunction) => {
                             anyhow::bail!("TypeScript trigger functions are unimplemented")
                         }
