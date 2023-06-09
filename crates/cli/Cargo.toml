@@ -44,7 +44,7 @@ flate2 = { version = "1.0.25", optional = true, features = ["zlib"]}
 futures = "0.3.28"
 humansize = "2.1.3"
 indicatif = "0.17.3"
-oci-spec = "0.6.0"
+oci-spec = "0.6.1"
 once_cell = "1.17.1"
 open = "4.0.2"
 owo-colors = { version = "3.5.0", features = ["supports-colors"] }
