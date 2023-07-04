@@ -33,6 +33,9 @@ use url::Url;
 use ahash::{HashMap, HashMapExt};
 use clap::Parser;
 use owo_colors::{OwoColorize, Stream};
+use reqwest::header::{USER_AGENT, ACCEPT};
+use semver::Version;
+use std::io::{BufRead, BufReader};
 use tokio::{io::AsyncWriteExt, process::Command};
 
 use crate::{
@@ -212,6 +215,73 @@ pub fn resolve_pipeline(pipeline: impl AsRef<Path>) -> Result<PathBuf> {
     }
 
     Err(anyhow::anyhow!("Could not find pipeline"))
+}
+
+pub async fn check_pipeline_compatibility(pipeline_path: impl AsRef<Path>) -> Result<String> {
+    // Open file and read its lines into a vector
+    let pipeline = std::fs::File::open(pipeline_path)?;
+    let reader = BufReader::new(pipeline);
+    let mut lines = vec![];
+    for line in reader.lines() {
+        lines.push(line?.trim().to_string());
+    }
+
+    // Find the Cicada import line
+    let cicada_import_regex =
+        regex::Regex::new(r#"https://deno.land/x/cicada(?:@v?(\d+\.\d+\.\d+))?[^"]*"#)?;
+
+    let cicada_import_line = lines
+        .iter()
+        .filter(|line| !line.trim_start().starts_with("//")) // ignore commented-out lines
+        .find(|line| cicada_import_regex.is_match(line));
+
+    // Extract the version number or set it to "latest"
+    if let Some(import_line) = cicada_import_line {
+        let cicada_import_capture = cicada_import_regex
+            .captures(import_line)
+            .expect("Unable to capture the version from the Pipeline Cicada import with regex.");
+
+        // If able to get the pipeline version from regex, use that. If not query the API for the latest version.
+        let pipeline_cicada_version = if let Some(ts_module_version) = cicada_import_capture.get(1)
+        {
+            semver::Version::parse(ts_module_version.as_str())?
+        } else {
+            eprintln!("No version number found. Defaulting to latest");
+            get_latest_cicada_version().await?
+        };
+
+        if pipeline_cicada_version == semver::Version::parse(clap::crate_version!())? {
+            Ok(format!(
+                "The CLI ({}) and the slated Pipeline ({}) have compatible versions.",
+                clap::crate_version!(),
+                pipeline_cicada_version
+            ))
+        } else {
+            Ok(format!("The CLI ({}) and the slated Pipeline ({}) have different versions. This may lead to incompatibility in future versions of Cicada.", clap::crate_version!(), pipeline_cicada_version))
+        }
+    } else {
+        Err(anyhow::anyhow!(
+            "Could not find the Cicada import line in the Pipeline."
+        ))
+    }
+}
+
+async fn get_latest_cicada_version() -> Result<Version> {
+    let url = "https://api.github.com/repos/cicadahq/cicada/releases/latest";
+    let client = reqwest::Client::new();
+    let resp = client
+        .get(url)
+        .header(USER_AGENT, "reqwest")
+        .header(ACCEPT, "application/vnd.github.v3+json")
+        .send()
+        .await?
+        .json::<serde_json::Value>()
+        .await?;
+    let version_str = resp["tag_name"]
+        .as_str()
+        .expect("Unable to read tag_name from response.");
+
+    Ok(Version::parse(version_str)?)
 }
 
 #[derive(Parser, Debug)]
@@ -433,6 +503,8 @@ impl Commands {
                 let github = github_repo().await.ok().flatten();
 
                 info!("Building pipeline: {}", pipeline_path.display().bold());
+
+                info!("{}", check_pipeline_compatibility(&pipeline_path).await?);
 
                 let out = {
                     let tmp_file = tempfile::NamedTempFile::new()?;
