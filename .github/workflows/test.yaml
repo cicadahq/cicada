@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Git Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - uses: denoland/setup-deno@v1
         with:
           deno-version: v1.x
@@ -34,7 +34,7 @@ jobs:
     name: Test Rust on ${{ matrix.os }}
     steps:
       - name: Git Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install dependencies (Linux)
         if: runner.os == 'Linux'
@@ -78,7 +78,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Git Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Shellcheck
         run: |
           for file in $(find . -type f -name "*.sh"); do
@@ -91,7 +91,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Deny
         uses: EmbarkStudios/cargo-deny-action@v1
@@ -101,7 +101,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Actions Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Check spelling
         uses: crate-ci/typos@master
