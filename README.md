@@ -3,6 +3,9 @@
 > **[Cicada](https://cicada.build)**: Write CI/CD pipelines in TypeScript, test
 > them locally
 
+> [!IMPORTANT]
+> Cicada is archived and will no longer be maintained. Thank you for your contributions and support.
+
 ## Quickstart
 
 Test a pipeline on your local device in < 2 minutes
