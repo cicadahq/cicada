@@ -1,10 +1,10 @@
+> [!IMPORTANT]
+> Cicada is archived and will no longer be maintained. Thank you for your contributions and support.
+
 # Cicada
 
 > **[Cicada](https://cicada.build)**: Write CI/CD pipelines in TypeScript, test
 > them locally
-
-> [!IMPORTANT]
-> Cicada is archived and will no longer be maintained. Thank you for your contributions and support.
 
 ## Quickstart
 
