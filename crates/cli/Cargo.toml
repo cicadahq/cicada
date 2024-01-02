@@ -22,7 +22,7 @@ fig-completions = ["dep:clap_complete_fig"]
 
 [dependencies]
 ahash = "0.8.3"
-anyhow = "1.0.74"
+anyhow = "1.0.75"
 base64 = "0.21.0"
 # buildkit-rs = { path = "../../../buildkit-rs", version = "0.1.0" }
 buildkit-rs = { git = "https://github.com/cicadahq/buildkit-rs.git", version = "0.1.0" }
