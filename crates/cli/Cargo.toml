@@ -84,14 +84,14 @@ zip = { version = "0.6.4", default-features = false, features = [
 ], optional = true }
 
 [target.'cfg(not(target_os = "windows"))'.dependencies]
-reqwest = { version = "0.11.16", default-features = false, features = [
+reqwest = { version = "0.11.20", default-features = false, features = [
     "json",
     "rustls",
     "socks",
 ] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
-reqwest = { version = "0.11.16", default-features = false, features = [
+reqwest = { version = "0.11.20", default-features = false, features = [
     "default-tls",
     "json",
     "socks",
